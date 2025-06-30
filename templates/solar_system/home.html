@@ -7,13 +7,170 @@
 
 {% block extra_css %}
 <link rel="stylesheet" href="{% static 'css/solar-system.css' %}">
+<style>
+/* Enhanced styles for Stage 4 interactivity */
+.info-section {
+    margin-bottom: 1.5rem;
+    padding-bottom: 1rem;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.info-section:last-child {
+    border-bottom: none;
+}
+
+.info-section h4 {
+    color: var(--color-primary);
+    margin-bottom: 1rem;
+    font-family: var(--font-display);
+    font-size: 1.1rem;
+}
+
+.info-section h5 {
+    color: var(--color-text-secondary);
+    margin-bottom: 0.5rem;
+    font-size: 0.9rem;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.info-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 0.5rem;
+}
+
+.info-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.25rem 0;
+}
+
+.info-label {
+    color: var(--color-text-secondary);
+    font-size: 0.9rem;
+}
+
+.info-value {
+    color: var(--color-text-primary);
+    font-weight: 500;
+    font-family: var(--font-display);
+    text-align: right;
+}
+
+.info-subsection {
+    margin-bottom: 1rem;
+}
+
+.info-subsection p {
+    color: var(--color-text-secondary);
+    line-height: 1.5;
+    margin: 0;
+}
+
+.fun-facts-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+.fun-facts-list li {
+    padding: 0.5rem 0;
+    padding-left: 1.5rem;
+    position: relative;
+    color: var(--color-text-secondary);
+    line-height: 1.4;
+}
+
+.fun-facts-list li::before {
+    content: '🌟';
+    position: absolute;
+    left: 0;
+    top: 0.5rem;
+}
+
+/* Planet tooltip enhancements */
+.planet-tooltip {
+    background: rgba(0, 0, 0, 0.95);
+    backdrop-filter: blur(15px);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    border-radius: 8px;
+    padding: 0.75rem 1rem;
+    max-width: 300px;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+}
+
+.tooltip-content h4 {
+    margin: 0 0 0.5rem 0;
+    color: var(--color-primary);
+    font-family: var(--font-display);
+    font-size: 1rem;
+}
+
+.tooltip-content p {
+    margin: 0;
+    color: var(--color-text-secondary);
+    font-size: 0.85rem;
+    line-height: 1.4;
+}
+
+/* Enhanced info panel */
+.info-panel {
+    width: 90%;
+    max-width: 700px;
+    max-height: 85vh;
+}
+
+.info-panel-content {
+    padding: 1.5rem;
+    max-height: calc(85vh - 80px);
+}
+
+/* Hover effects for planets */
+.solar-system-canvas {
+    transition: cursor 0.2s ease;
+}
+
+/* Selection indicators */
+.planet-selected {
+    filter: drop-shadow(0 0 10px #00ff88);
+}
+
+.planet-hovered {
+    filter: drop-shadow(0 0 8px #ffff44);
+}
+
+/* Mobile responsive adjustments */
+@media (max-width: 768px) {
+    .info-panel {
+        width: 95%;
+        max-width: none;
+        max-height: 90vh;
+    }
+
+    .info-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .info-item {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 0.25rem;
+    }
+
+    .info-value {
+        text-align: left;
+    }
+}
+</style>
 {% endblock %}
 
 {% block content %}
 <!-- 3D Canvas Container -->
 <div id="canvas-container" class="canvas-container">
     <canvas id="solar-system-canvas" class="solar-system-canvas"></canvas>
-    
+
     <!-- Canvas Overlay Elements -->
     <div class="canvas-overlay">
         <!-- Tooltip for planet hover -->
@@ -23,12 +180,12 @@
                 <p id="tooltip-info"></p>
             </div>
         </div>
-        
+
         <!-- Planet labels -->
-        <div id="planet-labels" class="planet-labels">
+        <div id="planet-labels" class="planet-labels" style="display: none;">
             <!-- Labels will be dynamically positioned here -->
         </div>
-        
+
         <!-- Distance measurement tool -->
         <div id="measurement-tool" class="measurement-tool hidden">
             <div class="measurement-line"></div>
@@ -36,13 +193,8 @@
                 <span id="measurement-distance"></span>
             </div>
         </div>
-        
-        <!-- Mini-map (optional) -->
-        <div id="mini-map" class="mini-map hidden">
-            <canvas id="mini-map-canvas" width="200" height="200"></canvas>
-        </div>
     </div>
-    
+
     <!-- Canvas Controls Overlay -->
     <div class="canvas-controls">
         <!-- Zoom controls -->
@@ -51,15 +203,15 @@
             <button id="zoom-out" class="zoom-btn" title="Zoom Out">−</button>
             <button id="zoom-reset" class="zoom-btn" title="Reset Zoom">⌂</button>
         </div>
-        
+
         <!-- View mode controls -->
         <div class="view-controls">
             <button id="view-top" class="view-btn" title="Top View">⬆</button>
             <button id="view-side" class="view-btn" title="Side View">➡</button>
             <button id="view-angled" class="view-btn active" title="Angled View">⬈</button>
         </div>
-        
-        <!-- Screenshot button -->
+
+        <!-- Utility controls -->
         <div class="utility-controls">
             <button id="screenshot-btn" class="utility-btn" title="Take Screenshot">📷</button>
             <button id="toggle-labels" class="utility-btn" title="Toggle Labels">🏷️</button>
@@ -69,31 +221,40 @@
 </div>
 
 <!-- Educational Information Cards -->
-<div id="info-cards" class="info-cards hidden">
+<div id="info-cards" class="info-cards">
     <div class="info-card" id="scale-card">
         <h4>🔍 Scale Information</h4>
         <p>Sizes and distances are scaled for visualization. Real space is mostly empty!</p>
         <div class="scale-comparison">
             <div class="scale-item">
                 <span class="scale-label">Size Scale:</span>
-                <span class="scale-value">1:1,000,000</span>
+                <span class="scale-value">1:2,000,000</span>
             </div>
             <div class="scale-item">
                 <span class="scale-label">Distance Scale:</span>
-                <span class="scale-value">1:10</span>
+                <span class="scale-value">1:25</span>
             </div>
         </div>
     </div>
-    
+
     <div class="info-card" id="facts-card">
         <h4>🌟 Did You Know?</h4>
         <div id="rotating-facts">
-            <p class="fact active">Jupiter has more mass than all other planets combined!</p>
-            <p class="fact">A day on Venus is longer than its year!</p>
-            <p class="fact">Saturn would float in a giant bathtub!</p>
-            <p class="fact">Uranus rotates on its side!</p>
-            <p class="fact">Neptune has the strongest winds in the solar system!</p>
+            <p class="fact active">Click on any planet to learn more about it!</p>
+            <p class="fact">Double-click a planet to focus the camera on it!</p>
+            <p class="fact">Use mouse wheel to zoom in and out!</p>
+            <p class="fact">The asteroid belt contains millions of rocky objects!</p>
+            <p class="fact">Jupiter protects Earth from many asteroids and comets!</p>
+            <p class="fact">Venus rotates backwards compared to most planets!</p>
         </div>
+    </div>
+
+    <div class="info-card" id="interaction-card">
+        <h4>🎮 Interaction Guide</h4>
+        <p><strong>Mouse:</strong> Drag to rotate, wheel to zoom</p>
+        <p><strong>Click:</strong> Select planets for information</p>
+        <p><strong>Double-click:</strong> Focus camera on planet</p>
+        <p><strong>Keyboard:</strong> 1-9 for planets, Space to pause</p>
     </div>
 </div>
 
@@ -117,15 +278,15 @@
             <span class="stat-value">4.6 billion years</span>
         </div>
         <div class="stat-item">
-            <span class="stat-label">Viewing Mode:</span>
-            <span class="stat-value" id="current-view-mode">Interactive 3D</span>
+            <span class="stat-label">Interactive:</span>
+            <span class="stat-value" id="interaction-status">Ready</span>
         </div>
     </div>
 </div>
 {% endblock %}
 
 {% block extra_js %}
-<!-- Core JavaScript files for Stage 2 -->
+<!-- Core JavaScript files for Stage 4 -->
 <script src="{% static 'js/utils/helpers.js' %}"></script>
 <script src="{% static 'js/utils/math-utils.js' %}"></script>
 <script src="{% static 'js/utils/api-client.js' %}"></script>
@@ -133,23 +294,22 @@
 <script src="{% static 'js/ui/loading-manager.js' %}"></script>
 <script src="{% static 'js/ui/notification-system.js' %}"></script>
 <script src="{% static 'js/ui/control-panel.js' %}"></script>
+<script src="{% static 'js/ui/info-panel-system.js' %}"></script>
 <script src="{% static 'js/solar-system/particle-systems.js' %}"></script>
 <script src="{% static 'js/solar-system/scene-manager.js' %}"></script>
-
-<!-- Placeholder modules for Stage 3 -->
 <script src="{% static 'js/solar-system/planet-factory.js' %}"></script>
 <script src="{% static 'js/solar-system/lighting-system.js' %}"></script>
 <script src="{% static 'js/solar-system/camera-controls.js' %}"></script>
-<script src="{% static 'js/solar-system/interaction-manager.js' %}"></script>
 <script src="{% static 'js/solar-system/orbital-mechanics.js' %}"></script>
+<script src="{% static 'js/solar-system/interaction-manager.js' %}"></script>
 
 <!-- Main application -->
 <script src="{% static 'js/solar-system/solar-system-app.js' %}"></script>
 {% endblock %}
 
 {% block app_init %}
-// Initialize the Solar System application
-console.log('Starting Solar System App initialization...');
+// Initialize the Solar System application with Stage 4 interactivity
+console.log('Starting Solar System App with full interactivity...');
 
 if (window.SolarSystemApp) {
     window.solarSystemApp = new window.SolarSystemApp({
@@ -157,37 +317,47 @@ if (window.SolarSystemApp) {
         canvasId: 'solar-system-canvas',
         config: window.SolarSystemConfig
     });
-    
+
     window.solarSystemApp.init().then(() => {
-        console.log('Solar System application initialized successfully');
-        
+        console.log('Solar System application with full interactivity initialized successfully');
+
         // Hide loading screen and show app
         if (window.LoadingManager) {
             window.LoadingManager.complete();
         }
-        
+
         // Show info cards after a delay
         setTimeout(() => {
             const infoCards = document.getElementById('info-cards');
             if (infoCards) {
                 infoCards.classList.remove('hidden');
             }
+
+            // Update interaction status
+            const interactionStatus = document.getElementById('interaction-status');
+            if (interactionStatus) {
+                interactionStatus.textContent = 'Active';
+                interactionStatus.style.color = '#10b981';
+            }
         }, 2000);
-        
+
         // Start rotating facts
         startFactRotation();
-        
+
+        // Setup additional Stage 4 event handlers
+        setupStage4EventHandlers();
+
     }).catch(error => {
         console.error('Failed to initialize Solar System:', error);
-        
+
         if (window.LoadingManager) {
-            window.LoadingManager.error('Failed to load 3D environment');
+            window.LoadingManager.error('Failed to load interactive 3D environment');
         }
-        
+
         if (window.NotificationSystem) {
-            window.NotificationSystem.showError('Failed to initialize 3D environment. Please check your browser compatibility.');
+            window.NotificationSystem.showError('Failed to initialize interactive features. Please check your browser compatibility.');
         }
-        
+
         // Force complete loading anyway so user can see the error
         setTimeout(() => {
             const loadingScreen = document.getElementById('loading-screen');
@@ -200,10 +370,10 @@ if (window.SolarSystemApp) {
     });
 } else {
     console.error('SolarSystemApp class not found - check if solar-system-app.js loaded correctly');
-    
+
     // Fallback: complete loading anyway
     setTimeout(() => {
-        console.log('Fallback: completing loading without 3D scene');
+        console.log('Fallback: completing loading without interactive features');
         const loadingScreen = document.getElementById('loading-screen');
         const appContainer = document.getElementById('app-container');
         if (loadingScreen && appContainer) {
@@ -213,16 +383,85 @@ if (window.SolarSystemApp) {
     }, 2000);
 }
 
+// Stage 4 specific event handlers
+function setupStage4EventHandlers() {
+    // Screenshot button
+    const screenshotBtn = document.getElementById('screenshot-btn');
+    if (screenshotBtn) {
+        screenshotBtn.addEventListener('click', () => {
+            if (window.solarSystemApp) {
+                window.solarSystemApp.takeScreenshot();
+            }
+        });
+    }
+
+    // Toggle labels button
+    const toggleLabelsBtn = document.getElementById('toggle-labels');
+    if (toggleLabelsBtn) {
+        toggleLabelsBtn.addEventListener('click', () => {
+            const labelsContainer = document.getElementById('planet-labels');
+            if (labelsContainer) {
+                const isVisible = labelsContainer.style.display !== 'none';
+                labelsContainer.style.display = isVisible ? 'none' : 'block';
+
+                // Update control panel checkbox
+                if (window.ControlPanel) {
+                    window.ControlPanel.setFeature('labels', !isVisible);
+                }
+            }
+        });
+    }
+
+    // Focus on Sun button
+    const focusSunBtn = document.getElementById('focus-sun');
+    if (focusSunBtn) {
+        focusSunBtn.addEventListener('click', () => {
+            if (window.solarSystemApp) {
+                window.solarSystemApp.focusOnPlanet('sun');
+            }
+        });
+    }
+
+    // Planet selection event handler
+    document.addEventListener('planetSelected', (event) => {
+        const planetData = event.detail.planet;
+
+        // Update interaction status
+        const interactionStatus = document.getElementById('interaction-status');
+        if (interactionStatus) {
+            interactionStatus.textContent = planetData.name;
+            interactionStatus.style.color = '#4a9eff';
+        }
+
+        // Update total moons if planet has moon data
+        if (planetData.moon_count !== undefined) {
+            const totalMoons = document.getElementById('total-moons');
+            if (totalMoons) {
+                totalMoons.textContent = planetData.moon_count;
+            }
+        }
+    });
+
+    // Planet deselection event handler
+    document.addEventListener('planetDeselected', () => {
+        const interactionStatus = document.getElementById('interaction-status');
+        if (interactionStatus) {
+            interactionStatus.textContent = 'Active';
+            interactionStatus.style.color = '#10b981';
+        }
+    });
+}
+
 // Utility functions
 function startFactRotation() {
     const facts = document.querySelectorAll('.fact');
     let currentIndex = 0;
-    
+
     setInterval(() => {
         facts[currentIndex].classList.remove('active');
         currentIndex = (currentIndex + 1) % facts.length;
         facts[currentIndex].classList.add('active');
-    }, 5000); // Change fact every 5 seconds
+    }, 7000); // Change fact every 7 seconds (longer for reading)
 }
 
 // Handle window resize
@@ -243,6 +482,33 @@ document.addEventListener('visibilitychange', () => {
 document.addEventListener('keydown', (event) => {
     if (window.solarSystemApp && window.solarSystemApp.handleKeyPress) {
         window.solarSystemApp.handleKeyPress(event);
+    }
+});
+
+// Additional keyboard shortcuts for Stage 4
+document.addEventListener('keydown', (event) => {
+    switch (event.code) {
+        case 'KeyI':
+            // Toggle info panel for selected planet
+            if (window.solarSystemApp?.InteractionManager) {
+                const selectedPlanet = window.solarSystemApp.InteractionManager.getSelectedPlanet();
+                if (selectedPlanet && window.solarSystemApp.InfoPanelSystem) {
+                    window.solarSystemApp.InfoPanelSystem.toggle();
+                }
+            }
+            break;
+        case 'KeyL':
+            // Toggle labels
+            event.preventDefault();
+            document.getElementById('toggle-labels')?.click();
+            break;
+        case 'KeyS':
+            // Take screenshot
+            if (event.ctrlKey || event.metaKey) {
+                event.preventDefault();
+                document.getElementById('screenshot-btn')?.click();
+            }
+            break;
     }
 });
 {% endblock %}

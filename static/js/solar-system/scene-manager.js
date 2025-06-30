@@ -583,6 +583,7 @@ window.SceneManager = (function() {
         get Scene() { return this.scene; }
         get Camera() { return this.camera; }
         get Renderer() { return this.renderer; }
+        get Canvas() { return this.canvas; }
         get Container() { return this.container; }
         get DeltaTime() { return this.deltaTime; }
         get IsAnimating() { return this.isAnimating; }

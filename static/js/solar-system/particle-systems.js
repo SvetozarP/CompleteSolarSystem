@@ -460,8 +460,11 @@ window.ParticleSystems = (function() {
         constructor(options = {}) {
             this.options = {
                 asteroidCount: 1000,
-                innerRadius: 28, // Between Mars and Jupiter (scaled)
-                outerRadius: 35,
+                // Mars distance: 1.52 AU × 25 × 4.5 = ~171 units
+                // Jupiter distance: 5.20 AU × 25 × 2.5 = ~325 units
+                // Asteroid belt should be between them
+                innerRadius: 200, // Just outside Mars orbit (~171)
+                outerRadius: 290, // Just inside Jupiter orbit (~325)
                 particleSize: 0.5,
                 orbitSpeed: 0.1,
                 ...options
