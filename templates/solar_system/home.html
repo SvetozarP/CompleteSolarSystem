@@ -1,0 +1,321 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Interactive 3D Solar System Visualization - Educational astronomy app built with Django and Three.js">
+    <meta name="keywords" content="solar system, planets, astronomy, education, 3D, interactive, Three.js">
+    <meta name="author" content="Solar System Educational App">
+
+    <title>{% block title %}{{ page_title|default:"Interactive Solar System" }}{% endblock %}</title>
+
+    <!-- Favicon -->
+    <link rel="icon" type="image/x-icon" href="{% load static %}{% static 'images/favicon.ico' %}">
+
+    <!-- CSS Framework and Custom Styles -->
+    <link rel="stylesheet" href="{% load static %}{% static 'css/normalize.css' %}">
+    <link rel="stylesheet" href="{% load static %}{% static 'css/base.css' %}">
+    {% block extra_css %}{% endblock %}
+
+    <!-- Three.js from CDN (r128) -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+
+    <!-- Font for UI -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;700;900&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+</head>
+<body class="{% block body_class %}{% endblock %}">
+    <!-- Loading Screen -->
+    <div id="loading-screen" class="loading-screen">
+        <div class="loading-content">
+            <div class="solar-spinner">
+                <div class="sun"></div>
+                <div class="planet planet-1"></div>
+                <div class="planet planet-2"></div>
+                <div class="planet planet-3"></div>
+            </div>
+            <h2>Loading Solar System...</h2>
+            <p id="loading-status">Initializing 3D environment...</p>
+            <div class="loading-bar">
+                <div class="loading-progress" id="loading-progress"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main Application Container -->
+    <div id="app-container" class="app-container" style="display: none;">
+
+        <!-- Header -->
+        <header class="app-header">
+            <div class="header-content">
+                <h1 class="app-title">
+                    <span class="icon">🌌</span>
+                    {% block header_title %}Interactive Solar System{% endblock %}
+                </h1>
+
+                <nav class="header-nav">
+                    <button id="help-btn" class="nav-btn" title="Help & Controls">
+                        <span>❓</span>
+                    </button>
+                    <button id="fullscreen-btn" class="nav-btn" title="Toggle Fullscreen">
+                        <span>⛶</span>
+                    </button>
+                    <button id="info-btn" class="nav-btn" title="System Information">
+                        <span>ℹ️</span>
+                    </button>
+                </nav>
+            </div>
+        </header>
+
+        <!-- Main Content Area -->
+        <main class="main-content">
+            {% block content %}
+            <!-- Content will be inserted here by child templates -->
+            {% endblock %}
+        </main>
+
+        <!-- Control Panel -->
+        <aside id="control-panel" class="control-panel">
+            <div class="panel-header">
+                <h3>Solar System Controls</h3>
+                <button id="collapse-panel" class="collapse-btn" title="Collapse Panel">−</button>
+            </div>
+
+            <div class="panel-content">
+                <!-- Animation Controls -->
+                <div class="control-section">
+                    <h4>Animation</h4>
+                    <div class="control-group">
+                        <button id="play-pause-btn" class="control-btn primary">
+                            <span id="play-pause-icon">⏸️</span>
+                            <span id="play-pause-text">Pause</span>
+                        </button>
+                        <button id="reset-btn" class="control-btn secondary">
+                            <span>🔄</span>
+                            Reset View
+                        </button>
+                    </div>
+
+                    <div class="control-group">
+                        <label for="speed-slider">Speed: <span id="speed-value">1.0x</span></label>
+                        <input type="range" id="speed-slider" min="0" max="5" step="0.1" value="1.0" class="slider">
+                        <div class="speed-presets">
+                            <button class="speed-btn" data-speed="0.5">0.5x</button>
+                            <button class="speed-btn active" data-speed="1.0">1x</button>
+                            <button class="speed-btn" data-speed="2.0">2x</button>
+                            <button class="speed-btn" data-speed="5.0">5x</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Display Options -->
+                <div class="control-section">
+                    <h4>Display Options</h4>
+                    <div class="checkbox-group">
+                        <label class="checkbox-label">
+                            <input type="checkbox" id="show-orbits" checked>
+                            <span class="checkmark"></span>
+                            Show Orbit Paths
+                        </label>
+                        <label class="checkbox-label">
+                            <input type="checkbox" id="show-labels" checked>
+                            <span class="checkmark"></span>
+                            Planet Labels
+                        </label>
+                        <label class="checkbox-label">
+                            <input type="checkbox" id="show-asteroids" checked>
+                            <span class="checkmark"></span>
+                            Asteroid Belt
+                        </label>
+                        <label class="checkbox-label">
+                            <input type="checkbox" id="show-stars" checked>
+                            <span class="checkmark"></span>
+                            Starfield
+                        </label>
+                    </div>
+                </div>
+
+                <!-- Quick Navigation -->
+                <div class="control-section">
+                    <h4>Quick Navigation</h4>
+                    <div class="planet-buttons" id="planet-navigation">
+                        <!-- Planet buttons will be dynamically generated -->
+                    </div>
+                </div>
+
+                <!-- System Info -->
+                <div class="control-section">
+                    <h4>System Information</h4>
+                    <div class="info-display">
+                        <div class="info-item">
+                            <span class="info-label">Simulation Time:</span>
+                            <span id="sim-time" class="info-value">0 days</span>
+                        </div>
+                        <div class="info-item">
+                            <span class="info-label">Selected Planet:</span>
+                            <span id="selected-planet" class="info-value">None</span>
+                        </div>
+                        <div class="info-item">
+                            <span class="info-label">Camera Distance:</span>
+                            <span id="camera-distance" class="info-value">0 AU</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </aside>
+
+        <!-- Information Panel -->
+        <div id="info-panel" class="info-panel hidden">
+            <div class="info-panel-header">
+                <h3 id="info-panel-title">Planet Information</h3>
+                <button id="close-info-panel" class="close-btn">&times;</button>
+            </div>
+            <div id="info-panel-content" class="info-panel-content">
+                <!-- Planet information will be dynamically loaded here -->
+            </div>
+        </div>
+
+        <!-- Help Modal -->
+        <div id="help-modal" class="modal hidden">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h3>Help & Controls</h3>
+                    <button id="close-help-modal" class="close-btn">&times;</button>
+                </div>
+                <div class="modal-body">
+                    <div class="help-section">
+                        <h4>Mouse Controls</h4>
+                        <ul>
+                            <li><strong>Left Click + Drag:</strong> Rotate around solar system</li>
+                            <li><strong>Mouse Wheel:</strong> Zoom in/out</li>
+                            <li><strong>Right Click + Drag:</strong> Pan view</li>
+                            <li><strong>Click Planet:</strong> Select and view information</li>
+                        </ul>
+                    </div>
+
+                    <div class="help-section">
+                        <h4>Keyboard Shortcuts</h4>
+                        <ul>
+                            <li><strong>Space:</strong> Play/Pause animation</li>
+                            <li><strong>R:</strong> Reset camera view</li>
+                            <li><strong>1-9:</strong> Focus on planets (Mercury to Pluto)</li>
+                            <li><strong>H:</strong> Toggle this help</li>
+                            <li><strong>Escape:</strong> Close panels</li>
+                        </ul>
+                    </div>
+
+                    <div class="help-section">
+                        <h4>About the Simulation</h4>
+                        <p>This interactive solar system uses real astronomical data from NASA and the IAU. Sizes and distances are scaled for better visualization while maintaining relative proportions. The simulation includes accurate orbital periods and rotational characteristics.</p>
+
+                        <p><strong>Educational Note:</strong> Real solar system distances are vast - if Earth were the size of a marble, the nearest star would be about 4,000 miles away!</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Performance Monitor (Development) -->
+        {% if debug %}
+        <div id="performance-monitor" class="performance-monitor">
+            <div class="perf-item">
+                <span class="perf-label">FPS:</span>
+                <span id="fps-counter" class="perf-value">60</span>
+            </div>
+            <div class="perf-item">
+                <span class="perf-label">Objects:</span>
+                <span id="object-counter" class="perf-value">0</span>
+            </div>
+            <div class="perf-item">
+                <span class="perf-label">Memory:</span>
+                <span id="memory-counter" class="perf-value">0 MB</span>
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- Toast Notifications -->
+        <div id="toast-container" class="toast-container">
+            <!-- Toast notifications will be dynamically added here -->
+        </div>
+
+    </div>
+
+    <!-- JavaScript Files -->
+    <script>
+        // Global configuration object
+        window.SolarSystemConfig = {
+            debug: {% if debug %}true{% else %}false{% endif %},
+            apiEndpoints: {
+                planets: '{% url "solar_system:planets_api" %}',
+                planetDetail: '{% url "solar_system:planet_detail_api" 0 %}'.replace('0', '{id}'),
+                systemInfo: '{% url "solar_system:system_info_api" %}'
+            },
+            scaling: {
+                sizeScaleFactor: 1000,
+                distanceScaleFactor: 10,
+                speedMultiplier: 1000
+            },
+            controls: {
+                mouseEnabled: true,
+                keyboardEnabled: true,
+                touchEnabled: true
+            },
+            performance: {
+                targetFPS: 60,
+                adaptiveQuality: true,
+                maxParticles: 10000
+            }
+        };
+    </script>
+
+    <!-- Core JavaScript Modules -->
+    <script src="{% load static %}{% static 'js/utils/helpers.js' %}"></script>
+    <script src="{% load static %}{% static 'js/utils/math-utils.js' %}"></script>
+    <script src="{% load static %}{% static 'js/utils/api-client.js' %}"></script>
+    <script src="{% load static %}{% static 'js/ui/loading-manager.js' %}"></script>
+    <script src="{% load static %}{% static 'js/ui/notification-system.js' %}"></script>
+    <script src="{% load static %}{% static 'js/ui/control-panel.js' %}"></script>
+
+    {% block extra_js %}{% endblock %}
+
+    <!-- Application Initialization -->
+    <script>
+        // Initialize the application when DOM is loaded
+        document.addEventListener('DOMContentLoaded', function() {
+            // Initialize loading screen
+            if (window.LoadingManager) {
+                window.LoadingManager.init();
+            }
+
+            // Initialize notification system
+            if (window.NotificationSystem) {
+                window.NotificationSystem.init();
+            }
+
+            // Initialize control panel
+            if (window.ControlPanel) {
+                window.ControlPanel.init();
+            }
+
+            // Initialize main application
+            {% block app_init %}{% endblock %}
+        });
+
+        // Global error handling
+        window.addEventListener('error', function(e) {
+            console.error('Application Error:', e.error);
+            if (window.NotificationSystem) {
+                window.NotificationSystem.showError('An unexpected error occurred. Please refresh the page.');
+            }
+        });
+
+        // Handle unhandled promise rejections
+        window.addEventListener('unhandledrejection', function(e) {
+            console.error('Unhandled Promise Rejection:', e.reason);
+            if (window.NotificationSystem) {
+                window.NotificationSystem.showWarning('A background operation failed. Some features may not work correctly.');
+            }
+        });
+    </script>
+</body>
+</html>
