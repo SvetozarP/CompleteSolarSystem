@@ -15,11 +15,11 @@ venv.bak/
 local_settings.py
 db.sqlite3
 db.sqlite3-journal
-/static/
 /media/
 
 # IDE
 .vscode/
+.venv/
 .idea/
 *.swp
 *.swo
