@@ -127,20 +127,6 @@
     max-height: calc(85vh - 80px);
 }
 
-/* Hover effects for planets */
-.solar-system-canvas {
-    transition: cursor 0.2s ease;
-}
-
-/* Selection indicators */
-.planet-selected {
-    filter: drop-shadow(0 0 10px #00ff88);
-}
-
-.planet-hovered {
-    filter: drop-shadow(0 0 8px #ffff44);
-}
-
 /* Mobile responsive adjustments */
 @media (max-width: 768px) {
     .info-panel {
@@ -184,14 +170,6 @@
         <!-- Planet labels -->
         <div id="planet-labels" class="planet-labels" style="display: none;">
             <!-- Labels will be dynamically positioned here -->
-        </div>
-
-        <!-- Distance measurement tool -->
-        <div id="measurement-tool" class="measurement-tool hidden">
-            <div class="measurement-line"></div>
-            <div class="measurement-info">
-                <span id="measurement-distance"></span>
-            </div>
         </div>
     </div>
 
@@ -302,8 +280,6 @@
 <script src="{% static 'js/solar-system/camera-controls.js' %}"></script>
 <script src="{% static 'js/solar-system/orbital-mechanics.js' %}"></script>
 <script src="{% static 'js/solar-system/interaction-manager.js' %}"></script>
-
-<!-- Main application -->
 <script src="{% static 'js/solar-system/solar-system-app.js' %}"></script>
 {% endblock %}
 
@@ -383,7 +359,7 @@ if (window.SolarSystemApp) {
     }, 2000);
 }
 
-// Stage 4 specific event handlers
+// Stage 4 specific event handlers - COMPLETE FIXED VERSION
 function setupStage4EventHandlers() {
     // Screenshot button
     const screenshotBtn = document.getElementById('screenshot-btn');
@@ -417,9 +393,123 @@ function setupStage4EventHandlers() {
     if (focusSunBtn) {
         focusSunBtn.addEventListener('click', () => {
             if (window.solarSystemApp) {
-                window.solarSystemApp.focusOnPlanet('sun');
+                window.solarSystemApp.focusOnPlanet('Sun');
             }
         });
+    }
+
+    // ZOOM CONTROLS
+    const zoomInBtn = document.getElementById('zoom-in');
+    const zoomOutBtn = document.getElementById('zoom-out');
+    const zoomResetBtn = document.getElementById('zoom-reset');
+
+    if (zoomInBtn) {
+        zoomInBtn.addEventListener('click', () => {
+            if (window.solarSystemApp && window.solarSystemApp.cameraControls) {
+                const controls = window.solarSystemApp.cameraControls;
+
+                // Use built-in dolly method
+                controls.dollyIn(1.25);
+                controls.update();
+
+                console.log('Zoom in applied');
+
+                // ONLY ONE NOTIFICATION - Remove duplicates from other places
+                if (window.NotificationSystem) {
+                    window.NotificationSystem.showInfo('🔍 Zoomed In', 1500);
+                }
+            }
+        });
+    }
+
+    if (zoomOutBtn) {
+        zoomOutBtn.addEventListener('click', () => {
+            if (window.solarSystemApp && window.solarSystemApp.cameraControls) {
+                const controls = window.solarSystemApp.cameraControls;
+
+                // Use built-in dolly method
+                controls.dollyOut(1.25);
+                controls.update();
+
+                console.log('Zoom out applied');
+
+                // ONLY ONE NOTIFICATION
+                if (window.NotificationSystem) {
+                    window.NotificationSystem.showInfo('🔍 Zoomed Out', 1500);
+                }
+            }
+        });
+    }
+
+    if (zoomResetBtn) {
+        zoomResetBtn.addEventListener('click', () => {
+            if (window.solarSystemApp) {
+                window.solarSystemApp.resetCameraView();
+
+                // ONLY ONE NOTIFICATION
+                if (window.NotificationSystem) {
+                    window.NotificationSystem.showInfo('📷 Camera Reset', 1500);
+                }
+            }
+        });
+    }
+
+    const viewTopBtn = document.getElementById('view-top');
+    const viewSideBtn = document.getElementById('view-side');
+    const viewAngledBtn = document.getElementById('view-angled');
+
+    if (viewTopBtn) {
+        viewTopBtn.addEventListener('click', () => {
+            if (window.solarSystemApp && window.solarSystemApp.cameraControls) {
+                window.solarSystemApp.cameraControls.setPosition(0, 150, 0);
+                window.solarSystemApp.cameraControls.lookAt(0, 0, 0);
+                updateViewButtons(viewTopBtn);
+
+                // SINGLE NOTIFICATION ONLY
+                if (window.NotificationSystem) {
+                    window.NotificationSystem.showInfo('⬆ Top View', 1500);
+                }
+            }
+        });
+    }
+
+    if (viewSideBtn) {
+        viewSideBtn.addEventListener('click', () => {
+            if (window.solarSystemApp && window.solarSystemApp.cameraControls) {
+                window.solarSystemApp.cameraControls.setPosition(150, 0, 0);
+                window.solarSystemApp.cameraControls.lookAt(0, 0, 0);
+                updateViewButtons(viewSideBtn);
+
+                // SINGLE NOTIFICATION ONLY
+                if (window.NotificationSystem) {
+                    window.NotificationSystem.showInfo('➡ Side View', 1500);
+                }
+            }
+        });
+    }
+
+    if (viewAngledBtn) {
+        viewAngledBtn.addEventListener('click', () => {
+            if (window.solarSystemApp && window.solarSystemApp.cameraControls) {
+                window.solarSystemApp.cameraControls.setPosition(0, 30, 80);
+                window.solarSystemApp.cameraControls.lookAt(0, 0, 0);
+                updateViewButtons(viewAngledBtn);
+
+                // SINGLE NOTIFICATION ONLY
+                if (window.NotificationSystem) {
+                    window.NotificationSystem.showInfo('⬈ Angled View', 1500);
+                }
+            }
+        });
+    }
+
+    // Helper function to update view button states
+    function updateViewButtons(activeButton) {
+        const viewBtns = document.querySelectorAll('.view-btn');
+        viewBtns.forEach(btn => btn.classList.remove('active'));
+        if (activeButton) {
+            activeButton.classList.add('active');
+        }
     }
 
     // Planet selection event handler
@@ -461,7 +551,7 @@ function startFactRotation() {
         facts[currentIndex].classList.remove('active');
         currentIndex = (currentIndex + 1) % facts.length;
         facts[currentIndex].classList.add('active');
-    }, 7000); // Change fact every 7 seconds (longer for reading)
+    }, 7000);
 }
 
 // Handle window resize
@@ -471,7 +561,7 @@ window.addEventListener('resize', () => {
     }
 });
 
-// Handle visibility change (pause when tab is not visible)
+// Handle visibility change
 document.addEventListener('visibilitychange', () => {
     if (window.solarSystemApp && window.solarSystemApp.handleVisibilityChange) {
         window.solarSystemApp.handleVisibilityChange(document.hidden);
@@ -489,8 +579,7 @@ document.addEventListener('keydown', (event) => {
 document.addEventListener('keydown', (event) => {
     switch (event.code) {
         case 'KeyI':
-            // Toggle info panel for selected planet
-            if (window.solarSystemApp?.InteractionManager) {
+            if (window.solarSystemApp && window.solarSystemApp.InteractionManager) {
                 const selectedPlanet = window.solarSystemApp.InteractionManager.getSelectedPlanet();
                 if (selectedPlanet && window.solarSystemApp.InfoPanelSystem) {
                     window.solarSystemApp.InfoPanelSystem.toggle();
@@ -498,12 +587,10 @@ document.addEventListener('keydown', (event) => {
             }
             break;
         case 'KeyL':
-            // Toggle labels
             event.preventDefault();
             document.getElementById('toggle-labels')?.click();
             break;
         case 'KeyS':
-            // Take screenshot
             if (event.ctrlKey || event.metaKey) {
                 event.preventDefault();
                 document.getElementById('screenshot-btn')?.click();

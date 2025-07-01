@@ -311,6 +311,8 @@ window.SolarSystemApp = class {
      * Create all planets with advanced materials and effects
      */
     async createAllPlanets() {
+        console.log('Creating planets...');
+
         for (const planetData of this.planets) {
             try {
                 const planetGroup = await this.planetFactory.createPlanet(planetData, {
@@ -328,8 +330,10 @@ window.SolarSystemApp = class {
                     // Add to scene
                     this.sceneManager.addObject(planetGroup, `${planetData.name}_group`);
 
-                    // Store reference
+                    // Store reference - USE EXACT NAME FROM DATA
                     this.planetInstances.set(planetData.name, planetGroup);
+
+                    console.log(`Created planet: ${planetData.name} at distance ${distance}`);
 
                     // Set sun reference for lighting
                     if (planetData.name === 'Sun' && this.lightingSystem) {
@@ -355,6 +359,8 @@ window.SolarSystemApp = class {
                 }
             }
         }
+
+        console.log('All planets created. Planet instances:', Array.from(this.planetInstances.keys()));
     }
 
     /**
@@ -478,8 +484,11 @@ window.SolarSystemApp = class {
             this.resetCameraView();
         });
 
+        // FIXED: Focus planet event handler
         this.addEventListener('focusPlanet', (e) => {
-            this.focusOnPlanet(e.detail.planet);
+            const planetName = e.detail.planet;
+            console.log(`Focus event received for: ${planetName}`);
+            this.focusOnPlanet(planetName);
         });
 
         // Quality control events
@@ -711,25 +720,68 @@ window.SolarSystemApp = class {
      * Focus camera on specific planet
      */
     focusOnPlanet(planetName) {
-        const planetGroup = this.planetInstances.get(planetName);
-        if (!planetGroup || !this.cameraControls) return;
+        console.log(`Attempting to focus on: ${planetName}`);
+        console.log('Available planets:', Array.from(this.planetInstances.keys()));
+
+        // Try to find planet with exact name match first
+        let planetGroup = this.planetInstances.get(planetName);
+
+        // If not found, try with proper case (capitalize first letter)
+        if (!planetGroup) {
+            const properCaseName = planetName.charAt(0).toUpperCase() + planetName.slice(1).toLowerCase();
+            planetGroup = this.planetInstances.get(properCaseName);
+            console.log(`Trying proper case: ${properCaseName}`);
+        }
+
+        if (!planetGroup) {
+            console.warn(`Planet '${planetName}' not found in planetInstances`);
+            if (window.NotificationSystem) {
+                window.NotificationSystem.showWarning(`Planet ${planetName} not found`);
+            }
+            return;
+        }
+
+        if (!this.cameraControls) {
+            console.warn('Camera controls not available');
+            return;
+        }
 
         const planetPosition = planetGroup.position;
-        const planetData = this.planets.find(p => p.name === planetName);
+        const planetData = this.planets.find(p =>
+            p.name.toLowerCase() === planetName.toLowerCase()
+        );
 
         if (planetData) {
-            // Calculate appropriate viewing distance based on planet size
-            const planetSize = this.planetFactory.calculateScaledSize(planetData);
-            const viewDistance = Math.max(planetSize * 8, 10);
+            // Calculate viewing distance
+            let viewDistance;
+            if (planetName.toLowerCase() === 'sun') {
+                viewDistance = 25;
+            } else if (planetData.planet_type === 'gas_giant') {
+                viewDistance = 20;
+            } else {
+                viewDistance = 15;
+            }
 
-            // Smooth camera transition
+            // Focus camera
             this.cameraControls.focusOn(planetPosition, viewDistance);
 
+            // Update UI
             if (window.ControlPanel) {
-                window.ControlPanel.updateSelectedPlanet(planetName);
+                window.ControlPanel.updateSelectedPlanet(planetData.name);
                 window.ControlPanel.updateCameraDistance(viewDistance);
             }
+
+            if (window.NotificationSystem) {
+                window.NotificationSystem.showInfo(`Focusing on ${planetData.name}`);
+            }
         }
+    }
+
+    testCameraControls() {
+    console.log('Camera controls available:', !!this.cameraControls);
+    console.log('Camera controls initialized:', this.cameraControls?.IsInitialized);
+    console.log('Planet instances count:', this.planetInstances.size);
+    console.log('Available planets:', Array.from(this.planetInstances.keys()));
     }
 
     /**
@@ -927,12 +979,19 @@ window.SolarSystemApp = class {
     }
 
     handleResize() {
-        if (this.sceneManager) {
-            this.sceneManager.updateSize();
-        }
-        if (this.lightingSystem) {
-            const container = this.sceneManager.Container;
-            this.lightingSystem.handleResize(container.clientWidth, container.clientHeight);
+        try {
+            if (this.sceneManager) {
+                this.sceneManager.updateSize();
+            }
+
+            if (this.lightingSystem && this.sceneManager?.Container) {
+                const container = this.sceneManager.Container;
+                if (container) {
+                    this.lightingSystem.handleResize(container.clientWidth, container.clientHeight);
+                }
+            }
+        } catch (error) {
+            console.warn('Resize error (non-critical):', error.message);
         }
     }
 
@@ -945,6 +1004,49 @@ window.SolarSystemApp = class {
     handleKeyPress(event) {
         if (window.ControlPanel && window.ControlPanel.handleKeyPress) {
             window.ControlPanel.handleKeyPress(event);
+        }
+    }
+
+    /**
+     * Focus camera on specific planet
+     */
+    focusOnPlanet(planetName) {
+        console.log(`Attempting to focus on: ${planetName}`);
+
+        const planetGroup = this.planetInstances.get(planetName);
+        if (!planetGroup || !this.cameraControls) {
+            console.warn(`Planet '${planetName}' not found or camera controls not available`);
+            if (window.NotificationSystem) {
+                window.NotificationSystem.showWarning(`Could not focus on ${planetName}`);
+            }
+            return;
+        }
+
+        const planetPosition = planetGroup.position;
+        const planetData = this.planets.find(p => p.name.toLowerCase() === planetName.toLowerCase());
+
+        if (planetData) {
+            // Calculate appropriate viewing distance
+            let viewDistance;
+            if (planetName.toLowerCase() === 'sun') {
+                viewDistance = 25;
+            } else if (planetData.planet_type === 'gas_giant') {
+                viewDistance = 20;
+            } else {
+                viewDistance = 15;
+            }
+
+            // Use camera controls focus method
+            this.cameraControls.focusOn(planetPosition, viewDistance);
+
+            if (window.ControlPanel) {
+                window.ControlPanel.updateSelectedPlanet(planetName);
+                window.ControlPanel.updateCameraDistance(viewDistance);
+            }
+
+            if (window.NotificationSystem) {
+                window.NotificationSystem.showInfo(`Focusing on ${planetName}`);
+            }
         }
     }
 

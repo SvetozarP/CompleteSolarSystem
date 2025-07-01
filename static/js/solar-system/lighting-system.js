@@ -309,8 +309,14 @@ window.LightingSystem = (function() {
                 this.composer.setSize(width, height);
             }
 
+            // FIXED: Safe check for bloomPass resolution
             if (this.bloomPass) {
-                this.bloomPass.resolution.set(width, height);
+                if (this.bloomPass.resolution && this.bloomPass.resolution.set) {
+                    this.bloomPass.resolution.set(width, height);
+                } else if (this.bloomPass.setSize) {
+                    this.bloomPass.setSize(width, height);
+                }
+                // If neither method exists, silently ignore (fallback mode)
             }
         }
 

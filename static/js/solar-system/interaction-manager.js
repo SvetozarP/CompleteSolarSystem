@@ -404,9 +404,9 @@ window.InteractionManager = (function() {
             // Select the planet
             this.selectPlanet(planetData);
 
-            // Show information panel
-            if (this.infoPanel) {
-                this.infoPanel.showPlanetInfo(planetData);
+            // FIXED: Use correct method name
+            if (this.infoPanel && this.infoPanel.show) {
+                this.infoPanel.show(planetData);
             }
 
             // Emit planet selection event

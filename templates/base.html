@@ -20,6 +20,64 @@
     <!-- Three.js from CDN (r128) -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 
+    <!-- Post-processing libraries for bloom effects -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/postprocessing/6.23.2/postprocessing.min.js"></script>
+
+    <!-- Fallback post-processing implementation -->
+    <script>
+    // Graceful fallback for post-processing
+    if (typeof THREE !== 'undefined') {
+        // Check if post-processing loaded successfully
+        if (typeof POSTPROCESSING !== 'undefined') {
+            // Use the postprocessing library
+            THREE.EffectComposer = POSTPROCESSING.EffectComposer;
+            THREE.RenderPass = POSTPROCESSING.RenderPass;
+            THREE.UnrealBloomPass = POSTPROCESSING.BloomPass;
+            console.log('Post-processing library loaded successfully');
+        } else {
+            // Fallback implementation
+            console.log('Post-processing library not available, using fallback');
+
+            THREE.EffectComposer = function(renderer) {
+                this.renderer = renderer;
+                this.passes = [];
+            };
+
+            THREE.EffectComposer.prototype = {
+                addPass: function(pass) {
+                    this.passes.push(pass);
+                },
+                render: function() {
+                    // Fallback: render normally without effects
+                    if (this.scene && this.camera) {
+                        this.renderer.render(this.scene, this.camera);
+                    }
+                },
+                setSize: function(width, height) {
+                    // No-op for fallback
+                },
+                dispose: function() {
+                    // No-op for fallback
+                }
+            };
+
+            THREE.RenderPass = function(scene, camera) {
+                this.scene = scene;
+                this.camera = camera;
+                this.enabled = true;
+            };
+
+            THREE.UnrealBloomPass = function(resolution, strength, radius, threshold) {
+                this.enabled = false; // Disable bloom in fallback
+                this.strength = strength || 1.0;
+                this.radius = radius || 0.4;
+                this.threshold = threshold || 0.85;
+                console.log('Using fallback bloom pass (effects disabled)');
+            };
+        }
+    }
+    </script>
+
     <!-- Font for UI -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>

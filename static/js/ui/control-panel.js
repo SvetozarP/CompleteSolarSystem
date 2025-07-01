@@ -187,13 +187,11 @@ window.ControlPanel = (function() {
     }
 
     function focusOnPlanet(planetName) {
+        // Emit event that the main app will handle
         document.dispatchEvent(new CustomEvent('focusPlanet', {
-            detail: { planet: planetName.toLowerCase() }
+            detail: { planet: planetName }
         }));
 
-        if (window.NotificationSystem) {
-            window.NotificationSystem.showInfo(`Focusing on ${planetName}`);
-        }
     }
 
     function updateSelectedPlanetButton(selectedButton) {

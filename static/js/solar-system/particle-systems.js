@@ -460,8 +460,12 @@ window.ParticleSystems = (function() {
         constructor(options = {}) {
             this.options = {
                 asteroidCount: 1000,
-                innerRadius: 28, // Between Mars and Jupiter (scaled)
-                outerRadius: 35,
+                // FIXED: Correct position between Mars and Jupiter
+                // Mars is at ~70 units (distance_from_sun: 1.524 * 25 * 4.5 = ~171, but scaled down)
+                // Jupiter is at ~130 units (distance_from_sun: 5.204 * 25 * 2.5 = ~325, but scaled down)
+                // Let's position asteroids between these properly
+                innerRadius: 85,  // Just outside Mars orbit
+                outerRadius: 115, // Just inside Jupiter orbit
                 particleSize: 0.5,
                 orbitSpeed: 0.1,
                 ...options
