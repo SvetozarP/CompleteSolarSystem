@@ -459,7 +459,7 @@ window.ParticleSystems = (function() {
     class AsteroidBeltSystem {
         constructor(options = {}) {
             this.options = {
-                asteroidCount: 1000,
+                asteroidCount: 20000,
                 // REMOVED: hardcoded positions
                 // NEW: Calculate positions dynamically based on Mars and Jupiter
                 calculateDynamicPositions: true,
@@ -538,8 +538,9 @@ window.ParticleSystems = (function() {
         }
 
         // Position asteroid belt between Mars and Jupiter with some buffer
-        this.innerRadius = marsDistance + 8;      // 8 units beyond Mars orbit
-        this.outerRadius = jupiterDistance - 12;   // 12 units before Jupiter orbit
+        // this.innerRadius = marsDistance + 8;      // 8 units beyond Mars orbit
+        this.innerRadius = jupiterDistance + 102;   // 12 units before Jupiter orbit
+        this.outerRadius = jupiterDistance + 162;   // 12 units before Jupiter orbit
 
         // Ensure minimum belt width
         if (this.outerRadius - this.innerRadius < 15) {
