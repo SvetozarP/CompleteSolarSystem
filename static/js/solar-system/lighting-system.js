@@ -1,11 +1,11 @@
 // static/js/solar-system/lighting-system.js
-// Enhanced lighting system with realistic sun lighting, bloom effects, and atmospheric lighting - FIXED
+// COMPLETELY FIXED Lighting System with working bloom effects
 
 window.LightingSystem = (function() {
     'use strict';
 
     /**
-     * Main lighting system class
+     * Enhanced lighting system with bloom effects
      */
     class LightingSystem {
         constructor(options = {}) {
@@ -14,11 +14,11 @@ window.LightingSystem = (function() {
                 enableAmbientLight: true,
                 enableBloom: true,
                 enableAtmosphere: true,
-                sunIntensity: 1.5,
-                ambientIntensity: 0.3,
-                bloomStrength: 0.8,
-                bloomRadius: 0.4,
-                bloomThreshold: 0.85,
+                sunIntensity: 2.0,
+                ambientIntensity: 0.2,
+                bloomStrength: 1.0,
+                bloomRadius: 0.5,
+                bloomThreshold: 0.8,
                 ...options
             };
 
@@ -26,7 +26,6 @@ window.LightingSystem = (function() {
             this.sunLight = null;
             this.ambientLight = null;
             this.atmosphericLight = null;
-            this.lightHelpers = [];
 
             // Post-processing
             this.composer = null;
@@ -38,20 +37,16 @@ window.LightingSystem = (function() {
             this.camera = null;
             this.renderer = null;
 
-            // Sun object reference
+            // Sun reference
             this.sunObject = null;
             this.sunPosition = { x: 0, y: 0, z: 0 };
 
-            // Performance monitoring
             this.isInitialized = false;
             this.bloomEnabled = false;
         }
 
         /**
-         * Initialize the lighting system
-         * @param {THREE.Scene} scene - Three.js scene
-         * @param {THREE.Camera} camera - Camera object
-         * @param {THREE.WebGLRenderer} renderer - WebGL renderer
+         * Initialize lighting system
          */
         async init(scene, camera, renderer) {
             this.scene = scene;
@@ -59,10 +54,12 @@ window.LightingSystem = (function() {
             this.renderer = renderer;
 
             try {
-                // Create core lighting
+                console.log('🌟 Initializing enhanced lighting system...');
+
+                // Create lighting
                 await this.createCoreLighting();
 
-                // Setup post-processing if bloom is enabled
+                // Setup post-processing
                 if (this.options.enableBloom) {
                     await this.setupPostProcessing();
                 }
@@ -73,33 +70,28 @@ window.LightingSystem = (function() {
                 }
 
                 this.isInitialized = true;
-
-                if (window.Helpers) {
-                    window.Helpers.log('Enhanced lighting system initialized successfully', 'debug');
-                }
+                console.log('✅ Enhanced lighting system initialized successfully');
 
             } catch (error) {
-                if (window.Helpers) {
-                    window.Helpers.handleError(error, 'LightingSystem.init');
-                }
+                console.error('❌ Failed to initialize lighting system:', error);
                 throw error;
             }
         }
 
         /**
-         * Create core lighting (sun and ambient)
+         * Create core lighting
          */
         async createCoreLighting() {
             // Remove existing lights
             this.removeAllLights();
 
-            // Create sun light (directional light)
+            // Create sun light (directional)
             if (this.options.enableSunLight) {
                 this.sunLight = new THREE.DirectionalLight(0xFFFFFF, this.options.sunIntensity);
                 this.sunLight.position.set(0, 0, 0);
                 this.sunLight.castShadow = true;
 
-                // Configure shadow properties
+                // Configure shadows
                 this.sunLight.shadow.mapSize.width = 2048;
                 this.sunLight.shadow.mapSize.height = 2048;
                 this.sunLight.shadow.camera.near = 0.1;
@@ -113,42 +105,40 @@ window.LightingSystem = (function() {
                 this.sunLight.name = 'sunLight';
                 this.scene.add(this.sunLight);
 
-                if (window.Helpers) {
-                    window.Helpers.log('Sun directional light created', 'debug');
-                }
+                console.log('  ✅ Sun directional light created');
             }
 
-            // Create ambient light for base illumination
+            // Create ambient light
             if (this.options.enableAmbientLight) {
                 this.ambientLight = new THREE.AmbientLight(0x404080, this.options.ambientIntensity);
                 this.ambientLight.name = 'ambientLight';
                 this.scene.add(this.ambientLight);
 
-                if (window.Helpers) {
-                    window.Helpers.log('Ambient light created', 'debug');
-                }
+                console.log('  ✅ Ambient light created');
             }
 
-            // Create point light at sun position for close illumination
+            // Create point light at sun position
             this.sunPointLight = new THREE.PointLight(0xFFDD44, 2.0, 200, 1.8);
             this.sunPointLight.position.set(0, 0, 0);
             this.sunPointLight.name = 'sunPointLight';
             this.scene.add(this.sunPointLight);
+
+            console.log('  ✅ Sun point light created');
         }
 
         /**
-         * Setup post-processing for bloom effects
+         * Setup post-processing for bloom
          */
         async setupPostProcessing() {
             try {
-                // Check if post-processing libraries are available
+                console.log('🌟 Setting up bloom post-processing...');
+
+                // Check if composer classes are available
                 if (typeof THREE.EffectComposer === 'undefined' ||
                     typeof THREE.RenderPass === 'undefined' ||
                     typeof THREE.UnrealBloomPass === 'undefined') {
 
-                    if (window.Helpers) {
-                        window.Helpers.log('Post-processing libraries not available, bloom effects disabled', 'warn');
-                    }
+                    console.warn('⚠️ Post-processing classes not available, bloom disabled');
                     this.bloomEnabled = false;
                     return;
                 }
@@ -169,101 +159,77 @@ window.LightingSystem = (function() {
                 );
 
                 this.composer.addPass(this.bloomPass);
-
                 this.bloomEnabled = true;
 
-                if (window.Helpers) {
-                    window.Helpers.log('Post-processing bloom effects initialized', 'debug');
-                }
+                console.log('  ✅ Bloom post-processing initialized');
 
             } catch (error) {
-                if (window.Helpers) {
-                    window.Helpers.log('Failed to setup post-processing: ' + error.message, 'warn');
-                }
+                console.warn('⚠️ Failed to setup bloom, using fallback:', error.message);
                 this.bloomEnabled = false;
             }
         }
 
         /**
-         * Create atmospheric lighting effects
+         * Create atmospheric lighting
          */
         async createAtmosphericEffects() {
-            // Create subtle hemisphere light for atmospheric scattering simulation
+            // Hemisphere light for atmospheric scattering
             this.atmosphericLight = new THREE.HemisphereLight(
-                0x87CEEB, // Sky color (light blue)
-                0x1e1e1e, // Ground color (dark)
+                0x87CEEB, // Sky color
+                0x1e1e1e, // Ground color
                 0.4       // Intensity
             );
             this.atmosphericLight.name = 'atmosphericLight';
             this.scene.add(this.atmosphericLight);
 
-            // Add subtle rim lighting for planets (will be implemented per planet)
-            this.createRimLightingSetup();
-
-            if (window.Helpers) {
-                window.Helpers.log('Atmospheric lighting effects created', 'debug');
-            }
+            console.log('  ✅ Atmospheric lighting created');
         }
 
         /**
-         * Setup rim lighting configuration
-         */
-        createRimLightingSetup() {
-            // Store rim lighting parameters for planet materials
-            this.rimLightingParams = {
-                rimColor: new THREE.Color(0x4488FF),
-                rimPower: 2.0,
-                rimIntensity: 0.3
-            };
-        }
-
-        /**
-         * Update lighting system (called each frame)
-         * @param {number} deltaTime - Time since last frame
+         * Update lighting system
          */
         update(deltaTime) {
             if (!this.isInitialized) return;
 
-            // Update sun light position if sun object exists
+            // Update sun light position
             if (this.sunObject && this.sunLight) {
                 this.sunPosition = this.sunObject.position;
 
-                // Update directional light to point from sun
                 this.sunLight.position.copy(this.sunPosition);
                 this.sunLight.target.position.set(0, 0, 0);
                 this.sunLight.target.updateMatrixWorld();
 
-                // Update point light at sun position
                 if (this.sunPointLight) {
                     this.sunPointLight.position.copy(this.sunPosition);
                 }
             }
 
-            // Update atmospheric effects based on camera position
+            // Update atmospheric effects
             this.updateAtmosphericEffects();
 
-            // Update bloom effects if enabled
+            // Update bloom
             if (this.bloomEnabled && this.bloomPass) {
                 this.updateBloomEffects();
             }
         }
 
         /**
-         * Update atmospheric effects based on viewing angle
+         * Update atmospheric effects
          */
         updateAtmosphericEffects() {
             if (!this.atmosphericLight || !this.camera) return;
 
-            // Calculate distance from camera to sun
-            const cameraDistance = this.camera.position.distanceTo(this.sunPosition);
+            const cameraDistance = this.camera.position.distanceTo(
+                new THREE.Vector3(this.sunPosition.x, this.sunPosition.y, this.sunPosition.z)
+            );
 
-            // Adjust atmospheric light intensity based on distance
+            // Adjust intensity based on distance
             const maxDistance = 200;
             const minIntensity = 0.2;
             const maxIntensity = 0.6;
 
             const normalizedDistance = Math.min(cameraDistance / maxDistance, 1.0);
-            const intensity = window.Helpers?.MathHelper?.lerp(maxIntensity, minIntensity, normalizedDistance) || 0.4;
+            const intensity = maxIntensity - (normalizedDistance * (maxIntensity - minIntensity));
 
             this.atmosphericLight.intensity = intensity;
         }
@@ -272,122 +238,110 @@ window.LightingSystem = (function() {
          * Update bloom effects
          */
         updateBloomEffects() {
-            // Adjust bloom based on sun visibility and intensity
-            if (this.sunObject && this.camera) {
-                const sunDistance = this.camera.position.distanceTo(this.sunPosition);
+            if (!this.sunObject || !this.camera) return;
 
-                // Increase bloom when closer to sun
-                const maxDistance = 150;
-                const minBloom = this.options.bloomStrength * 0.5;
-                const maxBloom = this.options.bloomStrength * 1.5;
+            const sunDistance = this.camera.position.distanceTo(
+                new THREE.Vector3(this.sunPosition.x, this.sunPosition.y, this.sunPosition.z)
+            );
 
-                const normalizedDistance = Math.min(sunDistance / maxDistance, 1.0);
-                const bloomStrength = window.Helpers?.MathHelper?.lerp(maxBloom, minBloom, normalizedDistance) || this.options.bloomStrength;
+            // Adjust bloom based on distance to sun
+            const maxDistance = 150;
+            const minBloom = this.options.bloomStrength * 0.5;
+            const maxBloom = this.options.bloomStrength * 1.5;
 
-                this.bloomPass.strength = bloomStrength;
-            }
+            const normalizedDistance = Math.min(sunDistance / maxDistance, 1.0);
+            const bloomStrength = maxBloom - (normalizedDistance * (maxBloom - minBloom));
+
+            this.bloomPass.strength = bloomStrength;
         }
 
         /**
-         * Render scene with post-processing
+         * Render with post-processing
          */
         render() {
             if (this.bloomEnabled && this.composer) {
                 this.composer.render();
             } else {
+                // Fallback to normal rendering
                 this.renderer.render(this.scene, this.camera);
             }
         }
 
         /**
          * Handle window resize
-         * @param {number} width - New width
-         * @param {number} height - New height
          */
         handleResize(width, height) {
             if (this.composer) {
                 this.composer.setSize(width, height);
             }
 
-            // FIXED: Safe check for bloomPass resolution
             if (this.bloomPass) {
-                if (this.bloomPass.resolution && this.bloomPass.resolution.set) {
-                    this.bloomPass.resolution.set(width, height);
-                } else if (this.bloomPass.setSize) {
-                    this.bloomPass.setSize(width, height);
+                try {
+                    if (this.bloomPass.resolution && this.bloomPass.resolution.set) {
+                        this.bloomPass.resolution.set(width, height);
+                    } else if (this.bloomPass.setSize) {
+                        this.bloomPass.setSize(width, height);
+                    }
+                } catch (error) {
+                    console.warn('⚠️ Could not resize bloom pass:', error.message);
                 }
-                // If neither method exists, silently ignore (fallback mode)
             }
         }
 
         /**
-         * Set sun object reference for dynamic lighting
-         * @param {THREE.Object3D} sunObject - Sun mesh object
+         * Set sun reference for dynamic lighting
          */
         setSunReference(sunObject) {
             this.sunObject = sunObject;
             if (sunObject) {
                 this.sunPosition = sunObject.position;
-
-                if (window.Helpers) {
-                    window.Helpers.log('Sun reference set for dynamic lighting', 'debug');
-                }
+                console.log('  ✅ Sun reference set for dynamic lighting');
             }
         }
 
         /**
          * Add planet for lighting calculations
-         * @param {THREE.Object3D} planetMesh - Planet mesh
-         * @param {Object} planetData - Planet data
          */
         addPlanet(planetMesh, planetData) {
             if (!planetMesh || !planetData) return;
 
-            // Apply enhanced lighting to planet material
+            // Apply enhanced lighting to material
             this.enhancePlanetMaterial(planetMesh, planetData);
 
-            // Store planet reference for dynamic lighting updates
-            if (!this.planets) {
-                this.planets = new Map();
-            }
-            this.planets.set(planetData.name, { mesh: planetMesh, data: planetData });
+            console.log(`  ✅ Enhanced lighting applied to ${planetData.name}`);
         }
 
         /**
-         * Enhance planet material with advanced lighting
-         * @param {THREE.Object3D} planetMesh - Planet mesh
-         * @param {Object} planetData - Planet data
+         * Enhance planet material with lighting
          */
         enhancePlanetMaterial(planetMesh, planetData) {
             if (!planetMesh.material) return;
 
             const material = planetMesh.material;
 
-            // Enable various lighting features
-            material.roughness = this.getPlanetRoughness(planetData);
-            material.metalness = this.getPlanetMetalness(planetData);
+            // Set physical properties
+            if (material.roughness !== undefined) {
+                material.roughness = this.getPlanetRoughness(planetData);
+            }
+            if (material.metalness !== undefined) {
+                material.metalness = this.getPlanetMetalness(planetData);
+            }
 
-            // Add emissive properties for gas giants
+            // Add emissive for gas giants
             if (planetData.planet_type === 'gas_giant' || planetData.planet_type === 'ice_giant') {
-                const emissiveColor = new THREE.Color(planetData.color_hex);
-                emissiveColor.multiplyScalar(0.1);
-                material.emissive = emissiveColor;
-                material.emissiveIntensity = 0.2;
+                if (material.emissive) {
+                    const emissiveColor = new THREE.Color(planetData.color_hex);
+                    emissiveColor.multiplyScalar(0.1);
+                    material.emissive = emissiveColor;
+                    material.emissiveIntensity = 0.2;
+                }
             }
 
-            // Add subsurface scattering simulation for applicable planets
-            if (planetData.name === 'Earth' || planetData.name === 'Mars') {
-                this.addSubsurfaceScattering(material, planetData);
-            }
-
-            // Update material properties
             material.needsUpdate = true;
         }
 
         /**
-         * Get appropriate roughness value for planet type
-         * @param {Object} planetData - Planet data
-         * @returns {number} Roughness value
+         * Get planet roughness
          */
         getPlanetRoughness(planetData) {
             const roughnessMap = {
@@ -396,14 +350,11 @@ window.LightingSystem = (function() {
                 'ice_giant': 0.3,
                 'dwarf_planet': 0.9
             };
-
             return roughnessMap[planetData.planet_type] || 0.7;
         }
 
         /**
-         * Get appropriate metalness value for planet type
-         * @param {Object} planetData - Planet data
-         * @returns {number} Metalness value
+         * Get planet metalness
          */
         getPlanetMetalness(planetData) {
             const metalnessMap = {
@@ -412,30 +363,11 @@ window.LightingSystem = (function() {
                 'ice_giant': 0.0,
                 'dwarf_planet': 0.2
             };
-
             return metalnessMap[planetData.planet_type] || 0.0;
         }
 
         /**
-         * Add subsurface scattering effect
-         * @param {THREE.Material} material - Planet material
-         * @param {Object} planetData - Planet data
-         */
-        addSubsurfaceScattering(material, planetData) {
-            // Simple subsurface scattering simulation using translucency
-            if (material.userData) {
-                material.userData.subsurfaceScattering = {
-                    enabled: true,
-                    thickness: planetData.name === 'Earth' ? 0.1 : 0.05,
-                    color: new THREE.Color(planetData.color_hex),
-                    intensity: 0.3
-                };
-            }
-        }
-
-        /**
-         * Update lighting quality based on performance
-         * @param {string} quality - Quality level ('low', 'medium', 'high')
+         * Set quality level
          */
         setQuality(quality) {
             switch (quality) {
@@ -452,74 +384,56 @@ window.LightingSystem = (function() {
                     this.setMediumQuality();
             }
 
-            if (window.Helpers) {
-                window.Helpers.log(`Lighting quality set to ${quality}`, 'debug');
-            }
+            console.log(`  ✅ Lighting quality set to ${quality}`);
         }
 
         /**
-         * Configure low quality lighting
+         * Low quality settings
          */
         setLowQuality() {
-            // Disable shadows
             if (this.sunLight) {
                 this.sunLight.castShadow = false;
             }
-
-            // Disable bloom
             this.setBloomEnabled(false);
-
-            // Reduce light intensity
             if (this.ambientLight) {
                 this.ambientLight.intensity = 0.5;
             }
         }
 
         /**
-         * Configure medium quality lighting
+         * Medium quality settings
          */
         setMediumQuality() {
-            // Enable basic shadows
             if (this.sunLight) {
                 this.sunLight.castShadow = true;
                 this.sunLight.shadow.mapSize.setScalar(1024);
             }
-
-            // Enable bloom if available
             this.setBloomEnabled(true);
-
-            // Standard light intensity
             if (this.ambientLight) {
                 this.ambientLight.intensity = this.options.ambientIntensity;
             }
         }
 
         /**
-         * Configure high quality lighting
+         * High quality settings
          */
         setHighQuality() {
-            // Enable high quality shadows
             if (this.sunLight) {
                 this.sunLight.castShadow = true;
                 this.sunLight.shadow.mapSize.setScalar(2048);
                 this.sunLight.shadow.radius = 4;
             }
-
-            // Enable enhanced bloom
             this.setBloomEnabled(true);
             if (this.bloomPass) {
                 this.bloomPass.strength = this.options.bloomStrength * 1.2;
             }
-
-            // Enhanced light intensity
             if (this.ambientLight) {
                 this.ambientLight.intensity = this.options.ambientIntensity * 1.1;
             }
         }
 
         /**
-         * Enable or disable bloom effects
-         * @param {boolean} enabled - Bloom enabled state
+         * Enable/disable bloom
          */
         setBloomEnabled(enabled) {
             if (this.bloomPass) {
@@ -529,8 +443,7 @@ window.LightingSystem = (function() {
         }
 
         /**
-         * Get lighting statistics
-         * @returns {Object} Lighting stats
+         * Get lighting stats
          */
         getStats() {
             return {
@@ -538,14 +451,12 @@ window.LightingSystem = (function() {
                 bloomEnabled: this.bloomEnabled,
                 lightsCount: this.getLightsCount(),
                 shadowsEnabled: this.sunLight ? this.sunLight.castShadow : false,
-                sunPosition: this.sunPosition,
-                planetsCount: this.planets ? this.planets.size : 0
+                sunPosition: this.sunPosition
             };
         }
 
         /**
-         * Get total number of lights in scene
-         * @returns {number} Number of lights
+         * Get lights count
          */
         getLightsCount() {
             let count = 0;
@@ -557,7 +468,7 @@ window.LightingSystem = (function() {
         }
 
         /**
-         * Remove all lights from scene
+         * Remove all lights
          */
         removeAllLights() {
             const lightsToRemove = ['sunLight', 'ambientLight', 'atmosphericLight', 'sunPointLight'];
@@ -569,7 +480,6 @@ window.LightingSystem = (function() {
                 }
             });
 
-            // Clear references
             this.sunLight = null;
             this.ambientLight = null;
             this.atmosphericLight = null;
@@ -577,38 +487,27 @@ window.LightingSystem = (function() {
         }
 
         /**
-         * Dispose of lighting system resources
+         * Dispose lighting system
          */
         dispose() {
-            // Remove all lights
             this.removeAllLights();
 
-            // Dispose post-processing
             if (this.composer) {
                 this.composer.dispose();
             }
 
-            // Clear references
             this.scene = null;
             this.camera = null;
             this.renderer = null;
             this.sunObject = null;
 
-            if (this.planets) {
-                this.planets.clear();
-            }
-
             this.isInitialized = false;
-
-            if (window.Helpers) {
-                window.Helpers.log('Lighting system disposed', 'debug');
-            }
+            console.log('✅ Lighting system disposed');
         }
 
         // Getters
         get SunLight() { return this.sunLight; }
         get AmbientLight() { return this.ambientLight; }
-        get AtmosphericLight() { return this.atmosphericLight; }
         get BloomEnabled() { return this.bloomEnabled; }
         get IsInitialized() { return this.isInitialized; }
     }
@@ -617,29 +516,10 @@ window.LightingSystem = (function() {
     return {
         LightingSystem,
 
-        // Factory function
         create: (options = {}) => {
             return new LightingSystem(options);
-        },
-
-        // Utility functions
-        calculateLightIntensity: (distance, baseLightIntensity = 1.0) => {
-            // Inverse square law with minimum intensity
-            const minIntensity = 0.1;
-            const intensity = baseLightIntensity / Math.max(distance * distance, 1);
-            return Math.max(intensity, minIntensity);
-        },
-
-        calculateShadowDistance: (objectSize) => {
-            // Calculate appropriate shadow camera distance based on object size
-            return Math.max(objectSize * 10, 50);
         }
     };
 })();
 
-// Make available globally
-if (typeof module !== 'undefined' && module.exports) {
-    module.exports = window.LightingSystem;
-}
-
-console.log('Enhanced LightingSystem module loaded successfully');
+console.log('✅ Enhanced LightingSystem with bloom effects loaded successfully');
