@@ -1,5 +1,5 @@
 // static/js/solar-system/lighting-system.js
-// Enhanced lighting system with realistic sun lighting, bloom effects, and atmospheric lighting
+// Enhanced lighting system with realistic sun lighting, bloom effects, and atmospheric lighting - FIXED
 
 window.LightingSystem = (function() {
     'use strict';
@@ -141,9 +141,15 @@ window.LightingSystem = (function() {
          */
         async setupPostProcessing() {
             try {
-                // Check if EffectComposer is available
-                if (typeof THREE.EffectComposer === 'undefined') {
-                    console.warn('EffectComposer not available, bloom effects disabled');
+                // Check if post-processing libraries are available
+                if (typeof THREE.EffectComposer === 'undefined' ||
+                    typeof THREE.RenderPass === 'undefined' ||
+                    typeof THREE.UnrealBloomPass === 'undefined') {
+
+                    if (window.Helpers) {
+                        window.Helpers.log('Post-processing libraries not available, bloom effects disabled', 'warn');
+                    }
+                    this.bloomEnabled = false;
                     return;
                 }
 
@@ -171,7 +177,9 @@ window.LightingSystem = (function() {
                 }
 
             } catch (error) {
-                console.warn('Failed to setup post-processing:', error);
+                if (window.Helpers) {
+                    window.Helpers.log('Failed to setup post-processing: ' + error.message, 'warn');
+                }
                 this.bloomEnabled = false;
             }
         }

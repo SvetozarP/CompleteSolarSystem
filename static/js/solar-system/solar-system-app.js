@@ -1,5 +1,5 @@
 // static/js/solar-system/solar-system-app.js
-// Final enhanced Solar System Application with all Stage 5 visual effects
+// Final enhanced Solar System Application with all fixes applied
 
 window.SolarSystemApp = class {
     constructor(options = {}) {
@@ -322,7 +322,7 @@ window.SolarSystemApp = class {
 
                 if (planetGroup) {
                     // Position planet at scaled orbital distance
-                    const distance = planetData.scaled_distance || this.calculateScaledDistance(planetData);
+                    const distance = this.calculateScaledDistance(planetData);
                     planetGroup.position.set(distance, 0, 0);
 
                     // Add to scene
@@ -369,14 +369,21 @@ window.SolarSystemApp = class {
         }
 
         this.orbitalMechanics = window.OrbitalMechanics.create({
-            planets: this.planetInstances,
-            timeScale: 1000,
+            timeScale: 20, // Reduced for better visual control
             enableEllipticalOrbits: this.options.qualityLevel === 'high',
             enableAxialTilt: true,
             enablePrecession: this.options.qualityLevel === 'high'
         });
 
-        await this.orbitalMechanics.init();
+        this.orbitalMechanics.init(this.sceneManager.Scene);
+
+        // Add all planets to orbital mechanics
+        this.planets.forEach(planetData => {
+            const planetGroup = this.planetInstances.get(planetData.name);
+            if (planetGroup && planetData.name !== 'Sun') {
+                this.orbitalMechanics.addOrbitingBody(planetGroup, planetData);
+            }
+        });
 
         if (window.Helpers) {
             window.Helpers.log('Orbital mechanics system initialized', 'debug');
@@ -450,14 +457,14 @@ window.SolarSystemApp = class {
         this.addEventListener('toggleAnimation', (e) => {
             this.isAnimating = e.detail.playing;
             if (this.orbitalMechanics) {
-                this.orbitalMechanics.setPaused(!this.isAnimating);
+                this.orbitalMechanics.setPlaying(this.isAnimating);
             }
         });
 
         this.addEventListener('speedChanged', (e) => {
             this.animationSpeed = e.detail.speed;
             if (this.orbitalMechanics) {
-                this.orbitalMechanics.setTimeScale(1000 * this.animationSpeed);
+                this.orbitalMechanics.setSpeed(this.animationSpeed);
             }
         });
 
@@ -537,7 +544,7 @@ window.SolarSystemApp = class {
 
         // Update orbital mechanics
         if (this.orbitalMechanics) {
-            this.orbitalMechanics.update(deltaTime);
+            this.orbitalMechanics.update(deltaTime, this.animationSpeed);
         }
 
         // Update planet factory (rotations, animations)
@@ -600,18 +607,8 @@ window.SolarSystemApp = class {
      * Update simulation time display
      */
     updateSimulationTime(currentTime) {
-        if (window.ControlPanel) {
-            const simulatedDays = Math.floor(currentTime * this.animationSpeed / 100);
-            const years = Math.floor(simulatedDays / 365);
-            const days = simulatedDays % 365;
-
-            let timeString;
-            if (years > 0) {
-                timeString = `${years}y ${days}d`;
-            } else {
-                timeString = `${days} days`;
-            }
-
+        if (window.ControlPanel && this.orbitalMechanics) {
+            const timeString = this.orbitalMechanics.getFormattedTime();
             window.ControlPanel.updateSimulationTime(timeString);
         }
     }
@@ -647,13 +644,13 @@ window.SolarSystemApp = class {
 
             case 'asteroids':
                 if (this.particleManager) {
-                    this.particleManager.setSystemVisible('asteroids', enabled);
+                    this.particleManager.setSystemVisible('asteroidBelt', enabled);
                 }
                 break;
 
             case 'nebulae':
                 if (this.particleManager) {
-                    this.particleManager.setSystemVisible('nebulae', enabled);
+                    this.particleManager.setSystemVisible('nebula', enabled);
                 }
                 break;
 
@@ -683,7 +680,7 @@ window.SolarSystemApp = class {
 
             case 'orbits':
                 if (this.orbitalMechanics) {
-                    this.orbitalMechanics.setOrbitPathsVisible(enabled);
+                    this.orbitalMechanics.setOrbitalPathsVisible(enabled);
                 }
                 break;
 
@@ -721,9 +718,9 @@ window.SolarSystemApp = class {
         const planetData = this.planets.find(p => p.name === planetName);
 
         if (planetData) {
-            // Calculate appropriate viewing distance
-            const planetSize = planetData.scaled_size || 1;
-            const viewDistance = Math.max(planetSize * 10, 5);
+            // Calculate appropriate viewing distance based on planet size
+            const planetSize = this.planetFactory.calculateScaledSize(planetData);
+            const viewDistance = Math.max(planetSize * 8, 10);
 
             // Smooth camera transition
             this.cameraControls.focusOn(planetPosition, viewDistance);
@@ -817,63 +814,100 @@ window.SolarSystemApp = class {
      * Calculate scaled distance for planet positioning
      */
     calculateScaledDistance(planetData) {
-        return planetData.distance_from_sun * 10; // Scale factor
+        // Use the same scaling as OrbitalMechanics
+        const DISTANCE_SCALE_FACTOR = 25;
+        const DISTANCE_MULTIPLIERS = {
+            'mercury': 2.0,
+            'venus': 2.5,
+            'earth': 3.0,
+            'mars': 4.5,
+            'jupiter': 2.5,
+            'saturn': 2.2,
+            'uranus': 1.8,
+            'neptune': 1.5,
+            'pluto': 1.2,
+            'sun': 0.0  // Sun at center
+        };
+
+        const planetName = planetData.name.toLowerCase();
+
+        if (planetName === 'sun') {
+            return 0; // Sun at center
+        }
+
+        const multiplier = DISTANCE_MULTIPLIERS[planetName] || 1.0;
+
+        return Math.max(
+            planetData.distance_from_sun * DISTANCE_SCALE_FACTOR * multiplier,
+            20 // Minimum distance
+        );
     }
 
     /**
-     * Enhanced fallback planet data
+     * Enhanced fallback planet data with better scaling
      */
     getEnhancedFallbackPlanetData() {
         return [
             {
                 name: 'Sun', display_order: 0, color_hex: '#FDB813',
-                distance_from_sun: 0.0, diameter: 1392700, scaled_size: 5,
-                planet_type: 'star', has_rings: false, has_moons: false
+                distance_from_sun: 0.0, diameter: 1392700,
+                planet_type: 'star', has_rings: false, has_moons: false,
+                orbital_period: 0, rotation_period: 609.12
             },
             {
                 name: 'Mercury', display_order: 1, color_hex: '#8C7853',
-                distance_from_sun: 0.39, diameter: 4879, scaled_size: 0.4,
-                planet_type: 'terrestrial', has_rings: false, has_moons: false
+                distance_from_sun: 0.39, diameter: 4879,
+                planet_type: 'terrestrial', has_rings: false, has_moons: false,
+                orbital_period: 87.97, rotation_period: 1407.6
             },
             {
                 name: 'Venus', display_order: 2, color_hex: '#FC649F',
-                distance_from_sun: 0.72, diameter: 12104, scaled_size: 0.9,
-                planet_type: 'terrestrial', has_rings: false, has_moons: false
+                distance_from_sun: 0.72, diameter: 12104,
+                planet_type: 'terrestrial', has_rings: false, has_moons: false,
+                orbital_period: 224.7, rotation_period: -5832.5
             },
             {
                 name: 'Earth', display_order: 3, color_hex: '#4F94CD',
-                distance_from_sun: 1.0, diameter: 12756, scaled_size: 1.0,
-                planet_type: 'terrestrial', has_rings: false, has_moons: true
+                distance_from_sun: 1.0, diameter: 12756,
+                planet_type: 'terrestrial', has_rings: false, has_moons: true,
+                orbital_period: 365.25, rotation_period: 23.93, moon_count: 1
             },
             {
                 name: 'Mars', display_order: 4, color_hex: '#CD5C5C',
-                distance_from_sun: 1.52, diameter: 6792, scaled_size: 0.5,
-                planet_type: 'terrestrial', has_rings: false, has_moons: true
+                distance_from_sun: 1.52, diameter: 6792,
+                planet_type: 'terrestrial', has_rings: false, has_moons: true,
+                orbital_period: 686.98, rotation_period: 24.62, moon_count: 2
             },
             {
                 name: 'Jupiter', display_order: 5, color_hex: '#D2691E',
-                distance_from_sun: 5.20, diameter: 142984, scaled_size: 4.0,
-                planet_type: 'gas_giant', has_rings: true, has_moons: true
+                distance_from_sun: 5.20, diameter: 142984,
+                planet_type: 'gas_giant', has_rings: true, has_moons: true,
+                orbital_period: 4332.59, rotation_period: 9.93, moon_count: 95
             },
             {
                 name: 'Saturn', display_order: 6, color_hex: '#FAD5A5',
-                distance_from_sun: 9.54, diameter: 120536, scaled_size: 3.5,
-                planet_type: 'gas_giant', has_rings: true, has_moons: true
+                distance_from_sun: 9.54, diameter: 120536,
+                planet_type: 'gas_giant', has_rings: true, has_moons: true,
+                orbital_period: 10759.22, rotation_period: 10.66, moon_count: 146
             },
             {
                 name: 'Uranus', display_order: 7, color_hex: '#4FD0FF',
-                distance_from_sun: 19.19, diameter: 51118, scaled_size: 1.8,
-                planet_type: 'ice_giant', has_rings: true, has_moons: true
+                distance_from_sun: 19.19, diameter: 51118,
+                planet_type: 'ice_giant', has_rings: true, has_moons: true,
+                orbital_period: 30688.5, rotation_period: -17.24, moon_count: 28
             },
             {
                 name: 'Neptune', display_order: 8, color_hex: '#4169E1',
-                distance_from_sun: 30.07, diameter: 49528, scaled_size: 1.7,
-                planet_type: 'ice_giant', has_rings: true, has_moons: true
+                distance_from_sun: 30.07, diameter: 49528,
+                planet_type: 'ice_giant', has_rings: true, has_moons: true,
+                orbital_period: 60182, rotation_period: 16.11, moon_count: 16
             },
             {
                 name: 'Pluto', display_order: 9, color_hex: '#EEE8AA',
-                distance_from_sun: 39.48, diameter: 2376, scaled_size: 0.2,
-                planet_type: 'dwarf_planet', has_rings: false, has_moons: true
+                distance_from_sun: 39.48, diameter: 2376,
+                planet_type: 'dwarf_planet', has_rings: false, has_moons: true,
+                orbital_period: 90560, rotation_period: -153.3, moon_count: 5,
+                is_dwarf_planet: true
             }
         ];
     }
@@ -1014,4 +1048,4 @@ window.SolarSystemApp = class {
     get PerformanceMode() { return this.options.performanceMode; }
 };
 
-console.log('Enhanced SolarSystemApp with Stage 5 visual effects loaded successfully');
+console.log('Enhanced SolarSystemApp with fixes loaded successfully');

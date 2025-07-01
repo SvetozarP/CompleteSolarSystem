@@ -1,5 +1,5 @@
 // static/js/solar-system/planet-factory.js
-// Enhanced planet factory with realistic materials and visual effects - FIXED MATERIALS
+// Enhanced planet factory with realistic materials and visual effects - COMPLETELY FIXED
 
 window.PlanetFactory = (function() {
     'use strict';
@@ -142,8 +142,8 @@ window.PlanetFactory = (function() {
             mesh.name = planetData.name;
             mesh.userData = { planetData, type: 'planetMesh' };
 
-            // Set position and scale
-            const scaledSize = planetData.scaled_size || this.calculateScaledSize(planetData);
+            // Set position and scale with corrected values
+            const scaledSize = this.calculateScaledSize(planetData);
             mesh.scale.setScalar(scaledSize);
 
             // Enable shadows for non-sun objects
@@ -153,6 +153,37 @@ window.PlanetFactory = (function() {
             }
 
             return mesh;
+        }
+
+        /**
+         * Calculate planet size scaling for realistic appearance
+         */
+        calculateScaledSize(planetData) {
+            // Much smaller scaling for realistic appearance
+            const MIN_SIZE = 0.3;  // Minimum visible size
+            const MAX_SIZE = 6.0;  // Maximum size (for Sun)
+
+            let scaledSize;
+
+            if (planetData.name === 'Sun') {
+                // Sun should be larger but not overwhelming
+                scaledSize = 5.0;
+            } else {
+                // Scale planets relative to Earth with better proportions
+                const earthDiameter = 12756; // km
+                const sizeRatio = planetData.diameter / earthDiameter;
+
+                // Apply logarithmic scaling for better visibility of smaller planets
+                if (sizeRatio < 0.1) {
+                    scaledSize = 0.3 + (sizeRatio * 5); // Boost tiny planets
+                } else if (sizeRatio < 1.0) {
+                    scaledSize = 0.5 + (sizeRatio * 1.5); // Small to medium planets
+                } else {
+                    scaledSize = 1.0 + Math.log(sizeRatio) * 0.8; // Large planets
+                }
+            }
+
+            return Math.max(MIN_SIZE, Math.min(MAX_SIZE, scaledSize));
         }
 
         /**
@@ -634,10 +665,6 @@ window.PlanetFactory = (function() {
             return baseSegments;
         }
 
-        calculateScaledSize(planetData) {
-            return planetData.diameter / 12742; // Relative to Earth
-        }
-
         /**
          * Create fallback planet for error cases
          * @param {Object} planetData - Planet data
@@ -654,6 +681,10 @@ window.PlanetFactory = (function() {
             const mesh = new THREE.Mesh(geometry, material);
             mesh.name = planetData.name;
             mesh.userData = { planetData, type: 'fallback' };
+
+            // Apply correct scaling
+            const scaledSize = this.calculateScaledSize(planetData);
+            mesh.scale.setScalar(scaledSize);
 
             const group = new THREE.Group();
             group.add(mesh);
