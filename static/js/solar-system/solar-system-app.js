@@ -244,7 +244,7 @@ window.SolarSystemApp = class {
     }
 
     /**
-     * Initialize enhanced particle systems
+     * Initialize enhanced particle systems with planet position awareness
      */
     async initEnhancedParticleSystems() {
         // Use enhanced particle systems if available, fallback to basic
@@ -271,10 +271,29 @@ window.SolarSystemApp = class {
             return;
         }
 
+        // Initialize without planet instances first
         await this.particleManager.init(this.sceneManager.Scene);
 
         if (window.Helpers) {
             window.Helpers.log('Enhanced particle systems initialized', 'debug');
+        }
+    }
+
+    /**
+     * Update asteroid belt position based on created planets
+     */
+    updateAsteroidBeltPosition() {
+        if (this.particleManager && this.planetInstances.size > 0) {
+            // Get asteroid belt system
+            const asteroidBelt = this.particleManager.getSystem('asteroidBelt');
+
+            if (asteroidBelt && asteroidBelt.updateBeltPosition) {
+                asteroidBelt.updateBeltPosition(this.planetInstances);
+
+                if (window.Helpers) {
+                    window.Helpers.log('Asteroid belt position updated based on planet positions', 'debug');
+                }
+            }
         }
     }
 
@@ -308,7 +327,7 @@ window.SolarSystemApp = class {
     }
 
     /**
-     * Create all planets with advanced materials and effects
+     * Create all planets with advanced materials and effects - UPDATED
      */
     async createAllPlanets() {
         console.log('Creating planets...');
@@ -361,6 +380,9 @@ window.SolarSystemApp = class {
         }
 
         console.log('All planets created. Planet instances:', Array.from(this.planetInstances.keys()));
+
+        // UPDATE ASTEROID BELT POSITION AFTER ALL PLANETS ARE CREATED
+        this.updateAsteroidBeltPosition();
     }
 
     /**
