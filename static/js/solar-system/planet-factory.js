@@ -1,94 +1,115 @@
 // static/js/solar-system/planet-factory.js
-// Enhanced planet factory with proper scaling and materials for Stage 3
+// Enhanced planet factory with realistic materials and visual effects - FIXED MATERIALS
 
 window.PlanetFactory = (function() {
     'use strict';
 
-    // Enhanced scaling constants for better visual separation
-    const SCALING = {
-        SIZE_SCALE_FACTOR: 2000,      // Increased from 1000 for smaller planets
-        DISTANCE_SCALE_FACTOR: 25,    // Increased from 20 for even better spacing
-        MIN_PLANET_SIZE: 0.3,         // Minimum visible size
-        MAX_PLANET_SIZE: 8.0,         // Maximum size for gas giants
-        SUN_SIZE_MULTIPLIER: 1.5,     // Reduced from 3.0 - Sun relative to largest planet
-
-        // Distance multipliers for specific planets to prevent overlap
-        DISTANCE_MULTIPLIERS: {
-            'mercury': 2.0,  // Mercury closer to realistic
-            'venus': 2.5,    // Venus
-            'earth': 3.0,    // Earth
-            'mars': 4.5,     // Mars much further out
-            'jupiter': 2.5,  // Jupiter much further from Mars
-            'saturn': 2.2,   // Saturn
-            'uranus': 1.8,   // Uranus
-            'neptune': 1.5,  // Neptune
-            'pluto': 1.2     // Pluto
-        }
-    };
-
     /**
-     * Create a planet with proper scaling and materials
+     * Planet factory for creating realistic 3D planets
      */
     class PlanetFactory {
-        constructor(textureLoader = null) {
-            this.textureLoader = textureLoader || window.TextureLoader;
-            this.planets = new Map();
-            this.planetGroups = new Map();
+        constructor(options = {}) {
+            this.options = {
+                defaultSegments: 64,
+                highQualitySegments: 128,
+                lowQualitySegments: 32,
+                enableTextures: true,
+                enableNormalMaps: true,
+                enableAtmosphere: true,
+                enableRings: true,
+                quality: 'medium',
+                ...options
+            };
+
+            // Caches
+            this.materialCache = new Map();
+            this.geometryCache = new Map();
+            this.planetInstances = new Map();
+            this.atmospheres = new Map();
+            this.ringSystems = new Map();
+
+            this.isInitialized = false;
         }
 
         /**
-         * Create a planet from database data
-         * @param {Object} planetData - Planet data from Django API
-         * @param {THREE.Scene} scene - Three.js scene
-         * @returns {Promise<THREE.Group>} Planet group
+         * Initialize the planet factory
          */
-        async createPlanet(planetData, scene) {
+        async init() {
             try {
-                // Calculate scaled properties
-                const scaledSize = this.calculateScaledSize(planetData);
-                const scaledDistance = this.calculateScaledDistance(planetData);
-
-                // Create planet group for organization
-                const planetGroup = new THREE.Group();
-                planetGroup.name = `${planetData.name}_group`;
-
-                // Create planet geometry
-                const geometry = new THREE.SphereGeometry(
-                    scaledSize,
-                    32, // Reduced segments for performance
-                    32
-                );
-
-                // Create planet material
-                const material = await this.createPlanetMaterial(planetData);
-
-                // Create planet mesh
-                const planetMesh = new THREE.Mesh(geometry, material);
-                planetMesh.name = planetData.name;
-                planetMesh.userData = {
-                    planetData: planetData,
-                    originalSize: scaledSize,
-                    originalDistance: scaledDistance,
-                    isSelectable: true
-                };
-
-                // Position planet at initial orbital position
-                planetMesh.position.set(scaledDistance, 0, 0);
-
-                // Add subtle self-rotation
-                planetMesh.rotation.y = Math.random() * Math.PI * 2;
-
-                planetGroup.add(planetMesh);
-
-                // Store references
-                this.planets.set(planetData.name.toLowerCase(), planetMesh);
-                this.planetGroups.set(planetData.name.toLowerCase(), planetGroup);
-
-                // Add to scene
-                scene.add(planetGroup);
+                this.isInitialized = true;
 
                 if (window.Helpers) {
-                    window.Helpers.log(`Created planet: ${planetData.name} - Size: ${scaledSize.toFixed(2)}, Distance: ${scaledDistance.toFixed(2)}`, 'debug');
+                    window.Helpers.log('Enhanced Planet Factory initialized', 'debug');
+                }
+
+            } catch (error) {
+                if (window.Helpers) {
+                    window.Helpers.handleError(error, 'PlanetFactory.init');
+                }
+                throw error;
+            }
+        }
+
+        /**
+         * Create a planet with all visual effects
+         * @param {Object} planetData - Planet data from API
+         * @param {Object} options - Creation options
+         * @returns {Promise<THREE.Group>} Planet group with all components
+         */
+        async createPlanet(planetData, options = {}) {
+            if (!this.isInitialized) {
+                await this.init();
+            }
+
+            try {
+                const planetOptions = {
+                    quality: this.options.quality,
+                    enableAtmosphere: this.options.enableAtmosphere && this.shouldHaveAtmosphere(planetData),
+                    enableRings: this.options.enableRings && planetData.has_rings,
+                    enableGlow: planetData.name === 'Sun',
+                    ...options
+                };
+
+                // Create planet group to hold all components
+                const planetGroup = new THREE.Group();
+                planetGroup.name = `${planetData.name}_group`;
+                planetGroup.userData = { planetData, type: 'planet' };
+
+                // Create main planet mesh
+                const planetMesh = await this.createPlanetMesh(planetData, planetOptions);
+                planetGroup.add(planetMesh);
+
+                // Add atmosphere if applicable
+                if (planetOptions.enableAtmosphere) {
+                    const atmosphere = await this.createAtmosphere(planetData, planetOptions);
+                    if (atmosphere) {
+                        planetGroup.add(atmosphere);
+                        this.atmospheres.set(planetData.name, atmosphere);
+                    }
+                }
+
+                // Add ring system if applicable
+                if (planetOptions.enableRings) {
+                    const rings = await this.createRingSystem(planetData, planetOptions);
+                    if (rings) {
+                        planetGroup.add(rings);
+                        this.ringSystems.set(planetData.name, rings);
+                    }
+                }
+
+                // Add glow effect for the sun
+                if (planetOptions.enableGlow) {
+                    const glow = await this.createSunGlow(planetData, planetOptions);
+                    if (glow) {
+                        planetGroup.add(glow);
+                    }
+                }
+
+                // Store planet instance
+                this.planetInstances.set(planetData.name, planetGroup);
+
+                if (window.Helpers) {
+                    window.Helpers.log(`Created enhanced planet: ${planetData.name}`, 'debug');
                 }
 
                 return planetGroup;
@@ -97,365 +118,639 @@ window.PlanetFactory = (function() {
                 if (window.Helpers) {
                     window.Helpers.handleError(error, `PlanetFactory.createPlanet(${planetData.name})`);
                 }
-                throw error;
+
+                // Return basic fallback planet
+                return this.createFallbackPlanet(planetData);
             }
         }
 
         /**
-         * Create the Sun with proper scaling and emissive material
-         * @param {Object} sunData - Sun data from database
-         * @param {THREE.Scene} scene - Three.js scene
-         * @returns {Promise<THREE.Group>} Sun group
-         */
-        async createSun(sunData, scene) {
-            try {
-                // Calculate sun size based on largest planet
-                const maxPlanetSize = SCALING.MAX_PLANET_SIZE;
-                const sunSize = maxPlanetSize * SCALING.SUN_SIZE_MULTIPLIER;
-
-                // Create sun geometry with more segments for smoothness
-                const geometry = new THREE.SphereGeometry(sunSize, 48, 48);
-
-                // Create emissive sun material
-                const material = await this.createSunMaterial(sunData);
-
-                // Create sun mesh
-                const sunMesh = new THREE.Mesh(geometry, material);
-                sunMesh.name = 'Sun';
-                sunMesh.position.set(0, 0, 0);
-                sunMesh.userData = {
-                    planetData: sunData,
-                    isSun: true,
-                    isSelectable: true
-                };
-
-                // Add subtle rotation
-                sunMesh.rotation.y = Math.random() * Math.PI * 2;
-
-                // Create sun group
-                const sunGroup = new THREE.Group();
-                sunGroup.name = 'sun_group';
-                sunGroup.add(sunMesh);
-
-                // Store references
-                this.planets.set('sun', sunMesh);
-                this.planetGroups.set('sun', sunGroup);
-
-                // Add to scene
-                scene.add(sunGroup);
-
-                if (window.Helpers) {
-                    window.Helpers.log(`Created Sun - Size: ${sunSize.toFixed(2)}`, 'debug');
-                }
-
-                return sunGroup;
-
-            } catch (error) {
-                if (window.Helpers) {
-                    window.Helpers.handleError(error, 'PlanetFactory.createSun');
-                }
-                throw error;
-            }
-        }
-
-        /**
-         * Calculate scaled planet size with better proportions
+         * Create the main planet mesh with advanced materials
          * @param {Object} planetData - Planet data
-         * @returns {number} Scaled radius
+         * @param {Object} options - Creation options
+         * @returns {Promise<THREE.Mesh>} Planet mesh
          */
-        calculateScaledSize(planetData) {
-            // Get diameter in km and convert to radius
-            const realRadius = planetData.diameter / 2;
+        async createPlanetMesh(planetData, options = {}) {
+            // Get or create geometry
+            const geometry = this.getOrCreateGeometry(planetData, options);
 
-            // Apply scaling
-            let scaledRadius = realRadius / SCALING.SIZE_SCALE_FACTOR;
+            // Create advanced material
+            const material = await this.createAdvancedMaterial(planetData, options);
 
-            // Special handling for different planet types
-            if (planetData.planet_type === 'gas_giant' || planetData.planet_type === 'ice_giant') {
-                // Gas giants can be larger
-                scaledRadius = Math.min(scaledRadius, SCALING.MAX_PLANET_SIZE);
+            // Create mesh
+            const mesh = new THREE.Mesh(geometry, material);
+            mesh.name = planetData.name;
+            mesh.userData = { planetData, type: 'planetMesh' };
+
+            // Set position and scale
+            const scaledSize = planetData.scaled_size || this.calculateScaledSize(planetData);
+            mesh.scale.setScalar(scaledSize);
+
+            // Enable shadows for non-sun objects
+            if (planetData.name !== 'Sun') {
+                mesh.castShadow = true;
+                mesh.receiveShadow = true;
+            }
+
+            return mesh;
+        }
+
+        /**
+         * Get or create sphere geometry with appropriate detail level
+         * @param {Object} planetData - Planet data
+         * @param {Object} options - Creation options
+         * @returns {THREE.SphereGeometry} Sphere geometry
+         */
+        getOrCreateGeometry(planetData, options = {}) {
+            const segments = this.getSegmentCount(planetData, options.quality);
+            const geometryKey = `sphere_${segments}`;
+
+            if (this.geometryCache.has(geometryKey)) {
+                return this.geometryCache.get(geometryKey);
+            }
+
+            const geometry = new THREE.SphereGeometry(1, segments, segments);
+            this.geometryCache.set(geometryKey, geometry);
+
+            return geometry;
+        }
+
+        /**
+         * Create advanced material with textures and effects
+         * @param {Object} planetData - Planet data
+         * @param {Object} options - Creation options
+         * @returns {Promise<THREE.Material>} Advanced material
+         */
+        async createAdvancedMaterial(planetData, options = {}) {
+            const materialKey = `${planetData.name}_${options.quality || 'medium'}`;
+
+            if (this.materialCache.has(materialKey)) {
+                return this.materialCache.get(materialKey);
+            }
+
+            let material;
+
+            if (planetData.name === 'Sun') {
+                material = await this.createSunMaterial(planetData, options);
             } else {
-                // Terrestrial planets stay smaller
-                scaledRadius = Math.min(scaledRadius, SCALING.MAX_PLANET_SIZE * 0.6);
+                material = await this.createPlanetMaterial(planetData, options);
             }
 
-            // Ensure minimum size for visibility
-            scaledRadius = Math.max(scaledRadius, SCALING.MIN_PLANET_SIZE);
-
-            return scaledRadius;
+            this.materialCache.set(materialKey, material);
+            return material;
         }
 
         /**
-         * Calculate scaled orbital distance with enhanced spacing
-         * @param {Object} planetData - Planet data
-         * @returns {number} Scaled distance
-         */
-        calculateScaledDistance(planetData) {
-            const realDistanceAU = planetData.distance_from_sun;
-            const planetName = planetData.name.toLowerCase();
-
-            // Get distance multiplier for this planet
-            const multiplier = SCALING.DISTANCE_MULTIPLIERS[planetName] || 1.0;
-
-            // Calculate base scaled distance
-            let scaledDistance = realDistanceAU * SCALING.DISTANCE_SCALE_FACTOR * multiplier;
-
-            // Ensure minimum distance from sun
-            const minDistance = 15; // Minimum distance to prevent overlap with sun
-            scaledDistance = Math.max(scaledDistance, minDistance);
-
-            return scaledDistance;
-        }
-
-        /**
-         * Create planet material with proper lighting response
-         * @param {Object} planetData - Planet data
-         * @returns {Promise<THREE.Material>} Planet material
-         */
-        async createPlanetMaterial(planetData) {
-            try {
-                // Try to load texture
-                let texture = null;
-                if (this.textureLoader && planetData.texture_filename) {
-                    try {
-                        const texturePath = `/static/textures/${planetData.texture_filename}`;
-                        texture = await this.textureLoader.load(texturePath);
-                    } catch (textureError) {
-                        if (window.Helpers) {
-                            window.Helpers.log(`Texture failed for ${planetData.name}, using procedural`, 'warn');
-                        }
-                    }
-                }
-
-                // Create material based on planet type
-                const materialOptions = {
-                    color: planetData.color_hex || '#888888',
-                    roughness: this.getPlanetRoughness(planetData),
-                    metalness: this.getPlanetMetalness(planetData),
-                    emissive: 0x000000,
-                    emissiveIntensity: 0
-                };
-
-                // Add texture if available
-                if (texture) {
-                    materialOptions.map = texture;
-                }
-
-                // Special handling for different planet types
-                if (planetData.planet_type === 'gas_giant' || planetData.planet_type === 'ice_giant') {
-                    // Gas giants are less rough
-                    materialOptions.roughness = 0.9;
-                    materialOptions.metalness = 0.0;
-                } else if (planetData.name.toLowerCase() === 'earth') {
-                    // Earth has more variation
-                    materialOptions.roughness = 0.6;
-                    materialOptions.metalness = 0.1;
-
-                    // Add slight blue emission for atmosphere effect
-                    materialOptions.emissive = new THREE.Color(0x0033aa);
-                    materialOptions.emissiveIntensity = 0.05;
-                }
-
-                const material = new THREE.MeshStandardMaterial(materialOptions);
-
-                // Ensure the material receives lighting properly
-                material.needsUpdate = true;
-
-                return material;
-
-            } catch (error) {
-                // Fallback to basic colored material
-                if (window.Helpers) {
-                    window.Helpers.log(`Material creation failed for ${planetData.name}, using fallback`, 'warn');
-                }
-
-                return new THREE.MeshStandardMaterial({
-                    color: planetData.color_hex || '#888888',
-                    roughness: 0.7,
-                    metalness: 0.1
-                });
-            }
-        }
-
-        /**
-         * Create Sun material with strong emission
-         * @param {Object} sunData - Sun data
+         * Create sun material with emissive properties - FIXED
+         * @param {Object} planetData - Sun data
+         * @param {Object} options - Creation options
          * @returns {Promise<THREE.Material>} Sun material
          */
-        async createSunMaterial(sunData) {
-            const sunColor = new THREE.Color(sunData.color_hex || '#FDB813');
+        async createSunMaterial(planetData, options = {}) {
+            const baseColor = new THREE.Color(planetData.color_hex || '#FDB813');
 
-            // Try to load sun texture
-            let texture = null;
-            if (this.textureLoader && sunData.texture_filename) {
-                try {
-                    const texturePath = `/static/textures/${sunData.texture_filename}`;
-                    texture = await this.textureLoader.load(texturePath);
-                } catch (error) {
-                    // Use procedural texture
-                    if (window.TextureLoader && window.TextureLoader.TextureUtils) {
-                        texture = window.TextureLoader.TextureUtils.createProceduralTexture({
-                            baseColor: sunData.color_hex,
-                            type: 'surface',
-                            size: 512,
-                            noiseScale: 0.02,
-                            noiseStrength: 0.3
-                        });
-                    }
-                }
-            }
-
-            // Use MeshStandardMaterial with emissive properties for the sun
-            const material = new THREE.MeshStandardMaterial({
-                color: sunColor,
-                emissive: sunColor,
-                emissiveIntensity: 0.8,
-                map: texture,
-                roughness: 1.0,
-                metalness: 0.0
+            // Create sun material with proper emissive properties
+            const material = new THREE.MeshBasicMaterial({
+                color: baseColor,
+                // Don't set emissive on MeshBasicMaterial - it doesn't support it
+                transparent: false
             });
+
+            // For advanced sun effects, we could use custom shaders, but keep it simple for now
+            if (options.quality === 'high') {
+                // Add custom properties for future shader enhancement
+                material.userData = {
+                    isSun: true,
+                    baseColor: baseColor,
+                    intensity: 1.2
+                };
+            }
 
             return material;
         }
 
         /**
-         * Get appropriate roughness for planet type
+         * Create planet material with advanced lighting
          * @param {Object} planetData - Planet data
-         * @returns {number} Roughness value
+         * @param {Object} options - Creation options
+         * @returns {Promise<THREE.Material>} Planet material
          */
-        getPlanetRoughness(planetData) {
-            switch (planetData.planet_type) {
-                case 'gas_giant':
-                case 'ice_giant':
-                    return 0.9; // Very rough for gas
-                case 'terrestrial':
-                    if (planetData.atmosphere && planetData.atmosphere.includes('thick')) {
-                        return 0.4; // Smoother with thick atmosphere
-                    }
-                    return 0.8; // Rocky surface
+        async createPlanetMaterial(planetData, options = {}) {
+            const baseColor = new THREE.Color(planetData.color_hex || '#888888');
+
+            // Create material based on planet type
+            const materialOptions = {
+                color: baseColor,
+                roughness: this.getRoughness(planetData),
+                metalness: this.getMetalness(planetData),
+                transparent: false
+            };
+
+            // Add special properties for different planet types
+            this.addPlanetSpecificProperties(materialOptions, planetData);
+
+            const material = new THREE.MeshStandardMaterial(materialOptions);
+
+            // Add custom properties for advanced effects
+            material.userData = {
+                planetData: planetData,
+                originalColor: baseColor.clone(),
+                animationTime: 0
+            };
+
+            return material;
+        }
+
+        /**
+         * Add planet-specific material properties
+         * @param {Object} materialOptions - Material options to modify
+         * @param {Object} planetData - Planet data
+         */
+        addPlanetSpecificProperties(materialOptions, planetData) {
+            switch (planetData.name) {
+                case 'Earth':
+                    materialOptions.roughness = 0.7;
+                    materialOptions.metalness = 0.1;
+                    // Add subtle blue emissive for atmosphere glow
+                    materialOptions.emissive = new THREE.Color(0x001122);
+                    materialOptions.emissiveIntensity = 0.05;
+                    break;
+
+                case 'Mars':
+                    materialOptions.roughness = 0.9;
+                    materialOptions.metalness = 0.05;
+                    // Dusty appearance
+                    break;
+
+                case 'Venus':
+                    materialOptions.roughness = 0.1;
+                    materialOptions.metalness = 0.0;
+                    // Bright, reflective atmosphere
+                    materialOptions.emissive = new THREE.Color(planetData.color_hex);
+                    materialOptions.emissiveIntensity = 0.1;
+                    break;
+
+                case 'Jupiter':
+                case 'Saturn':
+                    materialOptions.roughness = 0.1;
+                    materialOptions.metalness = 0.0;
+                    // Gas giant appearance
+                    break;
+
+                case 'Uranus':
+                case 'Neptune':
+                    materialOptions.roughness = 0.2;
+                    materialOptions.metalness = 0.0;
+                    // Ice giant with subtle glow
+                    materialOptions.emissive = new THREE.Color(planetData.color_hex);
+                    materialOptions.emissiveIntensity = 0.05;
+                    break;
+
                 default:
-                    return 0.7;
+                    // Default rocky appearance
+                    materialOptions.roughness = 0.8;
+                    materialOptions.metalness = 0.1;
             }
         }
 
         /**
-         * Get appropriate metalness for planet type
+         * Create atmosphere effect
          * @param {Object} planetData - Planet data
-         * @returns {number} Metalness value
+         * @param {Object} options - Creation options
+         * @returns {Promise<THREE.Mesh|null>} Atmosphere mesh
          */
-        getPlanetMetalness(planetData) {
-            if (planetData.composition && planetData.composition.toLowerCase().includes('iron')) {
-                return 0.3; // More metallic for iron-rich planets
+        async createAtmosphere(planetData, options = {}) {
+            if (!this.shouldHaveAtmosphere(planetData)) {
+                return null;
             }
 
-            switch (planetData.planet_type) {
-                case 'gas_giant':
-                case 'ice_giant':
-                    return 0.0; // No metallic reflection for gas
-                case 'terrestrial':
-                    return 0.1; // Slight metallic reflection for rocky planets
-                default:
-                    return 0.05;
+            const atmosphereRadius = 1.05; // Slightly larger than planet
+            const geometry = new THREE.SphereGeometry(atmosphereRadius, 32, 32);
+
+            const atmosphereColor = this.getAtmosphereColor(planetData);
+
+            const material = new THREE.ShaderMaterial({
+                uniforms: {
+                    time: { value: 0.0 },
+                    atmosphereColor: { value: atmosphereColor },
+                    opacity: { value: 0.3 },
+                    fresnelPower: { value: 3.0 }
+                },
+                vertexShader: `
+                    varying vec3 vNormal;
+                    varying vec3 vPosition;
+                    
+                    void main() {
+                        vNormal = normalize(normalMatrix * normal);
+                        vPosition = position;
+                        gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+                    }
+                `,
+                fragmentShader: `
+                    uniform float time;
+                    uniform vec3 atmosphereColor;
+                    uniform float opacity;
+                    uniform float fresnelPower;
+                    
+                    varying vec3 vNormal;
+                    varying vec3 vPosition;
+                    
+                    void main() {
+                        // Fresnel effect for atmosphere
+                        vec3 viewDirection = normalize(cameraPosition - vPosition);
+                        float fresnel = 1.0 - abs(dot(viewDirection, vNormal));
+                        fresnel = pow(fresnel, fresnelPower);
+                        
+                        // Subtle animation
+                        float pulse = sin(time * 2.0) * 0.1 + 0.9;
+                        
+                        gl_FragColor = vec4(atmosphereColor, fresnel * opacity * pulse);
+                    }
+                `,
+                transparent: true,
+                blending: THREE.AdditiveBlending,
+                side: THREE.BackSide,
+                depthWrite: false
+            });
+
+            const atmosphereMesh = new THREE.Mesh(geometry, material);
+            atmosphereMesh.name = `${planetData.name}_atmosphere`;
+            atmosphereMesh.userData = { type: 'atmosphere', planetData };
+
+            return atmosphereMesh;
+        }
+
+        /**
+         * Create ring system for planets
+         * @param {Object} planetData - Planet data
+         * @param {Object} options - Creation options
+         * @returns {Promise<THREE.Group|null>} Ring system group
+         */
+        async createRingSystem(planetData, options = {}) {
+            if (!planetData.has_rings) {
+                return null;
+            }
+
+            const ringGroup = new THREE.Group();
+            ringGroup.name = `${planetData.name}_rings`;
+
+            // Create ring geometry
+            const innerRadius = 1.2; // Start outside planet
+            let outerRadius = 2.0;    // Default outer radius
+
+            // Specific ring parameters for known planets
+            if (planetData.name === 'Saturn') {
+                outerRadius = 2.5;
+                // Create multiple ring sections for Saturn
+                await this.createSaturnRings(ringGroup, innerRadius, outerRadius);
+            } else {
+                // Generic ring system
+                await this.createGenericRings(ringGroup, innerRadius, outerRadius, planetData);
+            }
+
+            return ringGroup;
+        }
+
+        /**
+         * Create Saturn's detailed ring system
+         * @param {THREE.Group} ringGroup - Ring group to add to
+         * @param {number} innerRadius - Inner radius
+         * @param {number} outerRadius - Outer radius
+         */
+        async createSaturnRings(ringGroup, innerRadius, outerRadius) {
+            // Saturn has multiple ring divisions
+            const ringDivisions = [
+                { inner: 1.2, outer: 1.5, opacity: 0.8, color: 0xCCCCCC },
+                { inner: 1.6, outer: 1.9, opacity: 0.6, color: 0xAAAAAA },
+                { inner: 2.0, outer: 2.3, opacity: 0.9, color: 0xDDDDDD },
+                { inner: 2.4, outer: 2.5, opacity: 0.4, color: 0x999999 }
+            ];
+
+            for (const ring of ringDivisions) {
+                const geometry = new THREE.RingGeometry(ring.inner, ring.outer, 64);
+
+                // Create ring material with transparency
+                const material = new THREE.MeshBasicMaterial({
+                    color: ring.color,
+                    transparent: true,
+                    opacity: ring.opacity,
+                    side: THREE.DoubleSide,
+                    depthWrite: false
+                });
+
+                const ringMesh = new THREE.Mesh(geometry, material);
+                ringMesh.rotation.x = Math.PI / 2; // Rotate to horizontal
+
+                // Add slight random rotation for realism
+                ringMesh.rotation.z = Math.random() * Math.PI * 2;
+
+                ringGroup.add(ringMesh);
             }
         }
 
         /**
-         * Update planet rotation (self-spin)
-         * @param {number} deltaTime - Time since last update
+         * Create generic ring system
+         * @param {THREE.Group} ringGroup - Ring group to add to
+         * @param {number} innerRadius - Inner radius
+         * @param {number} outerRadius - Outer radius
+         * @param {Object} planetData - Planet data
          */
-        updatePlanetRotations(deltaTime) {
-            this.planets.forEach((planetMesh, name) => {
-                if (planetMesh.userData.planetData) {
-                    const planetData = planetMesh.userData.planetData;
+        async createGenericRings(ringGroup, innerRadius, outerRadius, planetData) {
+            const geometry = new THREE.RingGeometry(innerRadius, outerRadius, 64);
 
-                    // Calculate rotation speed based on real rotation period (much slower)
-                    let rotationSpeed = 0.0004; // Much slower default rotation (5x slower than before)
+            const ringColor = new THREE.Color(planetData.color_hex).multiplyScalar(0.7);
 
-                    if (planetData.rotation_period && planetData.rotation_period > 0) {
-                        // Scale rotation speed (much slower than before)
-                        rotationSpeed = (24 / Math.abs(planetData.rotation_period)) * 0.001; // Reduced from 0.005 (5x slower)
+            const material = new THREE.MeshBasicMaterial({
+                color: ringColor,
+                transparent: true,
+                opacity: 0.6,
+                side: THREE.DoubleSide,
+                depthWrite: false
+            });
 
-                        // Handle retrograde rotation (Venus, Uranus)
-                        if (planetData.rotation_period < 0) {
-                            rotationSpeed = -rotationSpeed;
-                        }
+            const ringMesh = new THREE.Mesh(geometry, material);
+            ringMesh.rotation.x = Math.PI / 2; // Rotate to horizontal
+
+            ringGroup.add(ringMesh);
+        }
+
+        /**
+         * Create sun glow effect
+         * @param {Object} planetData - Sun data
+         * @param {Object} options - Creation options
+         * @returns {Promise<THREE.Mesh>} Glow mesh
+         */
+        async createSunGlow(planetData, options = {}) {
+            const glowRadius = 1.5; // Larger than sun
+            const geometry = new THREE.SphereGeometry(glowRadius, 32, 32);
+
+            const glowColor = new THREE.Color(planetData.color_hex || '#FDB813');
+
+            const material = new THREE.ShaderMaterial({
+                uniforms: {
+                    time: { value: 0.0 },
+                    glowColor: { value: glowColor },
+                    intensity: { value: 0.4 }
+                },
+                vertexShader: `
+                    varying vec3 vNormal;
+                    varying vec3 vPosition;
+                    
+                    void main() {
+                        vNormal = normalize(normalMatrix * normal);
+                        vPosition = position;
+                        gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
                     }
+                `,
+                fragmentShader: `
+                    uniform float time;
+                    uniform vec3 glowColor;
+                    uniform float intensity;
+                    
+                    varying vec3 vNormal;
+                    varying vec3 vPosition;
+                    
+                    void main() {
+                        vec3 viewDirection = normalize(cameraPosition - vPosition);
+                        float fresnel = 1.0 - abs(dot(viewDirection, vNormal));
+                        
+                        // Pulsing effect
+                        float pulse = sin(time * 3.0) * 0.2 + 0.8;
+                        
+                        float alpha = fresnel * intensity * pulse;
+                        gl_FragColor = vec4(glowColor, alpha);
+                    }
+                `,
+                transparent: true,
+                blending: THREE.AdditiveBlending,
+                side: THREE.BackSide,
+                depthWrite: false
+            });
 
-                    planetMesh.rotation.y += rotationSpeed * deltaTime * 60; // 60fps normalization
-                }
+            const glowMesh = new THREE.Mesh(geometry, material);
+            glowMesh.name = `${planetData.name}_glow`;
+            glowMesh.userData = { type: 'glow', planetData };
+
+            return glowMesh;
+        }
+
+        /**
+         * Update planet animations
+         * @param {number} deltaTime - Time since last frame
+         */
+        update(deltaTime) {
+            if (!this.isInitialized) return;
+
+            this.planetInstances.forEach((planetGroup, planetName) => {
+                this.updatePlanetGroup(planetGroup, deltaTime);
             });
         }
 
         /**
-         * Get planet mesh by name
-         * @param {string} planetName - Planet name
-         * @returns {THREE.Mesh|null} Planet mesh
+         * Update individual planet group
+         * @param {THREE.Group} planetGroup - Planet group
+         * @param {number} deltaTime - Delta time
          */
-        getPlanet(planetName) {
-            return this.planets.get(planetName.toLowerCase()) || null;
+        updatePlanetGroup(planetGroup, deltaTime) {
+            const planetData = planetGroup.userData.planetData;
+
+            // Update main planet rotation
+            const planetMesh = planetGroup.getObjectByName(planetData.name);
+            if (planetMesh && planetData.rotation_period) {
+                const rotationSpeed = (2 * Math.PI) / (planetData.rotation_period * 3600); // Convert hours to seconds
+                planetMesh.rotation.y += rotationSpeed * deltaTime * 1000; // Speed up for visualization
+            }
+
+            // Update shader animations
+            planetGroup.traverse((child) => {
+                if (child.material && child.material.uniforms) {
+                    if (child.material.uniforms.time) {
+                        child.material.uniforms.time.value += deltaTime;
+                    }
+                }
+            });
+
+            // Update atmosphere effects
+            const atmosphere = this.atmospheres.get(planetData.name);
+            if (atmosphere && atmosphere.material.uniforms) {
+                atmosphere.material.uniforms.time.value += deltaTime;
+            }
         }
 
         /**
-         * Get planet group by name
+         * Helper methods
+         */
+        shouldHaveAtmosphere(planetData) {
+            const atmosphericPlanets = ['Earth', 'Venus', 'Mars', 'Jupiter', 'Saturn', 'Uranus', 'Neptune'];
+            return atmosphericPlanets.includes(planetData.name);
+        }
+
+        getAtmosphereColor(planetData) {
+            const atmosphereColors = {
+                'Earth': new THREE.Color(0x87CEEB),
+                'Venus': new THREE.Color(0xFFC649),
+                'Mars': new THREE.Color(0xFF6B47),
+                'Jupiter': new THREE.Color(0xD2691E),
+                'Saturn': new THREE.Color(0xFAD5A5),
+                'Uranus': new THREE.Color(0x4FD0FF),
+                'Neptune': new THREE.Color(0x4169E1)
+            };
+
+            return atmosphereColors[planetData.name] || new THREE.Color(planetData.color_hex);
+        }
+
+        getRoughness(planetData) {
+            const roughnessMap = {
+                'terrestrial': 0.8,
+                'gas_giant': 0.1,
+                'ice_giant': 0.3,
+                'dwarf_planet': 0.9
+            };
+            return roughnessMap[planetData.planet_type] || 0.7;
+        }
+
+        getMetalness(planetData) {
+            const metalnessMap = {
+                'terrestrial': 0.1,
+                'gas_giant': 0.0,
+                'ice_giant': 0.0,
+                'dwarf_planet': 0.2
+            };
+            return metalnessMap[planetData.planet_type] || 0.0;
+        }
+
+        getSegmentCount(planetData, quality = 'medium') {
+            const baseSegments = {
+                'low': this.options.lowQualitySegments,
+                'medium': this.options.defaultSegments,
+                'high': this.options.highQualitySegments
+            }[quality] || this.options.defaultSegments;
+
+            // Adjust for planet importance
+            if (planetData.name === 'Sun' || planetData.name === 'Earth') {
+                return Math.min(baseSegments * 1.5, 128);
+            }
+
+            return baseSegments;
+        }
+
+        calculateScaledSize(planetData) {
+            return planetData.diameter / 12742; // Relative to Earth
+        }
+
+        /**
+         * Create fallback planet for error cases
+         * @param {Object} planetData - Planet data
+         * @returns {THREE.Group} Basic planet group
+         */
+        createFallbackPlanet(planetData) {
+            const geometry = new THREE.SphereGeometry(1, 32, 32);
+            const material = new THREE.MeshStandardMaterial({
+                color: planetData.color_hex || '#888888',
+                roughness: 0.7,
+                metalness: 0.1
+            });
+
+            const mesh = new THREE.Mesh(geometry, material);
+            mesh.name = planetData.name;
+            mesh.userData = { planetData, type: 'fallback' };
+
+            const group = new THREE.Group();
+            group.add(mesh);
+            group.name = `${planetData.name}_group`;
+            group.userData = { planetData, type: 'planet' };
+
+            return group;
+        }
+
+        /**
+         * Set quality level
+         * @param {string} quality - Quality level ('low', 'medium', 'high')
+         */
+        setQuality(quality) {
+            this.options.quality = quality;
+
+            // Clear caches to force recreation with new quality
+            this.materialCache.clear();
+            this.geometryCache.clear();
+
+            if (window.Helpers) {
+                window.Helpers.log(`Planet factory quality set to ${quality}`, 'debug');
+            }
+        }
+
+        /**
+         * Get planet instance
          * @param {string} planetName - Planet name
          * @returns {THREE.Group|null} Planet group
          */
-        getPlanetGroup(planetName) {
-            return this.planetGroups.get(planetName.toLowerCase()) || null;
+        getPlanet(planetName) {
+            return this.planetInstances.get(planetName) || null;
         }
 
         /**
-         * Get all planet names
-         * @returns {Array} Array of planet names
+         * Get all planet instances
+         * @returns {Map} Map of planet instances
          */
-        getAllPlanetNames() {
-            return Array.from(this.planets.keys());
+        getAllPlanets() {
+            return this.planetInstances;
         }
 
         /**
-         * Get scaling information for debugging
-         * @returns {Object} Scaling info
+         * Get factory statistics
+         * @returns {Object} Factory stats
          */
-        getScalingInfo() {
+        getStats() {
             return {
-                ...SCALING,
-                planetsCreated: this.planets.size,
-                planetNames: this.getAllPlanetNames()
+                isInitialized: this.isInitialized,
+                planetsCreated: this.planetInstances.size,
+                materialsCached: this.materialCache.size,
+                geometriesCached: this.geometryCache.size,
+                ringSystems: this.ringSystems.size,
+                atmospheres: this.atmospheres.size,
+                quality: this.options.quality
             };
         }
 
         /**
-         * Dispose of all planet resources
+         * Dispose of factory resources
          */
         dispose() {
-            this.planets.forEach((planetMesh) => {
-                if (planetMesh.geometry) {
-                    planetMesh.geometry.dispose();
-                }
-                if (planetMesh.material) {
-                    if (Array.isArray(planetMesh.material)) {
-                        planetMesh.material.forEach(mat => mat.dispose());
-                    } else {
-                        planetMesh.material.dispose();
-                    }
-                }
-            });
+            // Dispose geometries
+            this.geometryCache.forEach(geometry => geometry.dispose());
+            this.geometryCache.clear();
 
-            this.planets.clear();
-            this.planetGroups.clear();
+            // Dispose materials
+            this.materialCache.forEach(material => material.dispose());
+            this.materialCache.clear();
+
+            // Clear planet instances
+            this.planetInstances.clear();
+            this.ringSystems.clear();
+            this.atmospheres.clear();
+
+            this.isInitialized = false;
+
+            if (window.Helpers) {
+                window.Helpers.log('Planet factory disposed', 'debug');
+            }
         }
     }
 
     // Public API
     return {
         PlanetFactory,
-        SCALING,
 
         // Factory function
-        create: (textureLoader = null) => {
-            return new PlanetFactory(textureLoader);
+        create: (options = {}) => {
+            return new PlanetFactory(options);
         }
     };
 })();
+
+// Make available globally
+if (typeof module !== 'undefined' && module.exports) {
+    module.exports = window.PlanetFactory;
+}
 
 console.log('Enhanced PlanetFactory module loaded successfully');

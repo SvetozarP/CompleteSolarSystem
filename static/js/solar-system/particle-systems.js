@@ -1,5 +1,5 @@
 // static/js/solar-system/particle-systems.js
-// Advanced particle systems for starfield, nebula effects, and asteroid belt
+// Enhanced particle systems with starfield, nebula effects, and asteroid belt - FIXED
 
 window.ParticleSystems = (function() {
     'use strict';
@@ -460,11 +460,8 @@ window.ParticleSystems = (function() {
         constructor(options = {}) {
             this.options = {
                 asteroidCount: 1000,
-                // Mars distance: 1.52 AU × 25 × 4.5 = ~171 units
-                // Jupiter distance: 5.20 AU × 25 × 2.5 = ~325 units
-                // Asteroid belt should be between them
-                innerRadius: 200, // Just outside Mars orbit (~171)
-                outerRadius: 290, // Just inside Jupiter orbit (~325)
+                innerRadius: 28, // Between Mars and Jupiter (scaled)
+                outerRadius: 35,
                 particleSize: 0.5,
                 orbitSpeed: 0.1,
                 ...options

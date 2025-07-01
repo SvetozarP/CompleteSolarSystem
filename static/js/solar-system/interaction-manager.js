@@ -1,64 +1,93 @@
 // static/js/solar-system/interaction-manager.js
-// Ray casting and planet selection system for Stage 4
+// Enhanced interaction manager for planet selection and information display - FIXED
 
 window.InteractionManager = (function() {
     'use strict';
 
     /**
-     * Interaction manager for planet selection and raycasting
+     * Interaction manager for handling planet selection and information display
      */
     class InteractionManager {
-        constructor(camera, scene, canvas, options = {}) {
-            this.camera = camera;
-            this.scene = scene;
-            this.canvas = canvas;
-
+        constructor(options = {}) {
             this.options = {
+                enablePlanetSelection: true,
                 enableTooltips: true,
-                enableSelection: true,
                 enableHover: true,
-                tooltipDelay: 500, // ms
-                selectionColor: 0x00ff00,
-                hoverColor: 0xffff00,
+                enableDoubleClick: true,
+                tooltipDelay: 500,
                 ...options
             };
 
-            // Raycasting
+            // Required parameters
+            this.scene = options.scene;
+            this.camera = options.camera;
+            this.domElement = options.domElement;
+            this.planets = options.planets || new Map();
+
+            if (!this.scene || !this.camera || !this.domElement) {
+                throw new Error('InteractionManager requires scene, camera, and domElement');
+            }
+
+            // Raycaster for object picking
             this.raycaster = new THREE.Raycaster();
             this.mouse = new THREE.Vector2();
-            this.touchPosition = new THREE.Vector2();
 
             // Selection state
-            this.selectedObject = null;
-            this.hoveredObject = null;
-            this.selectableObjects = new Map(); // planetMesh -> planetData
-
-            // Visual feedback
-            this.selectionOutline = null;
-            this.hoverOutline = null;
-
-            // Tooltip system
-            this.tooltip = null;
-            this.tooltipTimeout = null;
-            this.isTooltipVisible = false;
-
-            // Event state
-            this.isMouseDown = false;
+            this.selectedPlanet = null;
+            this.hoveredPlanet = null;
             this.lastClickTime = 0;
             this.doubleClickThreshold = 300; // ms
 
-            this.init();
+            // UI elements
+            this.tooltip = null;
+            this.infoPanel = null;
+
+            // Event listeners for cleanup
+            this.eventListeners = [];
+
+            // Tooltip state
+            this.tooltipTimeout = null;
+            this.isTooltipVisible = false;
+
+            this.isInitialized = false;
         }
 
         /**
          * Initialize interaction manager
          */
-        init() {
-            this.createTooltip();
-            this.bindEventListeners();
+        async init() {
+            try {
+                // Initialize UI elements
+                this.initializeUIElements();
 
-            if (window.Helpers) {
-                window.Helpers.log('InteractionManager initialized', 'debug');
+                // Bind event listeners
+                this.bindEventListeners();
+
+                this.isInitialized = true;
+
+                if (window.Helpers) {
+                    window.Helpers.log('Interaction manager initialized', 'debug');
+                }
+
+            } catch (error) {
+                if (window.Helpers) {
+                    window.Helpers.handleError(error, 'InteractionManager.init');
+                }
+                throw error;
+            }
+        }
+
+        /**
+         * Initialize UI elements
+         */
+        initializeUIElements() {
+            // Create tooltip element
+            this.createTooltip();
+
+            // Initialize info panel system if available
+            if (window.InfoPanelSystem) {
+                this.infoPanel = window.InfoPanelSystem.create();
+                this.infoPanel.init();
             }
         }
 
@@ -66,416 +95,461 @@ window.InteractionManager = (function() {
          * Create tooltip element
          */
         createTooltip() {
-            this.tooltip = document.getElementById('planet-tooltip');
-            if (!this.tooltip) {
-                this.tooltip = document.createElement('div');
-                this.tooltip.id = 'planet-tooltip';
-                this.tooltip.className = 'planet-tooltip hidden';
-                this.tooltip.innerHTML = `
-                    <div class="tooltip-content">
-                        <h4 id="tooltip-title"></h4>
-                        <p id="tooltip-info"></p>
-                    </div>
-                `;
-                document.body.appendChild(this.tooltip);
+            this.tooltip = document.createElement('div');
+            this.tooltip.id = 'planet-tooltip';
+            this.tooltip.className = 'planet-tooltip hidden';
+            this.tooltip.innerHTML = `
+                <div class="tooltip-content">
+                    <h4 id="tooltip-title"></h4>
+                    <p id="tooltip-info"></p>
+                </div>
+            `;
+
+            // Add tooltip styles
+            this.tooltip.style.cssText = `
+                position: absolute;
+                background: rgba(0, 0, 0, 0.9);
+                backdrop-filter: blur(10px);
+                color: white;
+                padding: 8px 12px;
+                border-radius: 8px;
+                border: 1px solid rgba(255, 255, 255, 0.2);
+                font-size: 14px;
+                pointer-events: none;
+                z-index: 1000;
+                opacity: 0;
+                transition: opacity 0.3s ease;
+                max-width: 250px;
+            `;
+
+            document.body.appendChild(this.tooltip);
+        }
+
+        /**
+         * Bind event listeners
+         */
+        bindEventListeners() {
+            if (!this.domElement) {
+                console.error('domElement is undefined in InteractionManager');
+                return;
+            }
+
+            // Mouse events
+            this.addEventListener('mousemove', this.onMouseMove.bind(this));
+            this.addEventListener('click', this.onClick.bind(this));
+
+            // Touch events for mobile
+            this.addEventListener('touchstart', this.onTouchStart.bind(this));
+            this.addEventListener('touchend', this.onTouchEnd.bind(this));
+
+            // Keyboard events
+            this.addEventListener('keydown', this.onKeyDown.bind(this), document);
+
+            // Window events
+            this.addEventListener('resize', this.onWindowResize.bind(this), window);
+        }
+
+        /**
+         * Add event listener with cleanup tracking
+         */
+        addEventListener(type, listener, element = null) {
+            const target = element || this.domElement;
+            if (!target) {
+                console.error(`Target element is undefined for event: ${type}`);
+                return;
+            }
+
+            target.addEventListener(type, listener, { passive: false });
+            this.eventListeners.push({ target, type, listener });
+        }
+
+        /**
+         * Mouse move handler
+         */
+        onMouseMove(event) {
+            if (!this.options.enableHover && !this.options.enableTooltips) return;
+
+            // Update mouse coordinates
+            this.updateMouseCoordinates(event);
+
+            // Perform raycasting
+            const intersectedPlanet = this.raycastPlanets();
+
+            // Handle hover state changes
+            this.handleHoverStateChange(intersectedPlanet);
+
+            // Update tooltip
+            if (this.options.enableTooltips) {
+                this.updateTooltip(event, intersectedPlanet);
             }
         }
 
         /**
-         * Bind event listeners for interaction
+         * Mouse click handler
          */
-        bindEventListeners() {
-            // Mouse events
-            this.canvas.addEventListener('mousemove', this.onMouseMove.bind(this), false);
-            this.canvas.addEventListener('mousedown', this.onMouseDown.bind(this), false);
-            this.canvas.addEventListener('mouseup', this.onMouseUp.bind(this), false);
-            this.canvas.addEventListener('click', this.onClick.bind(this), false);
-            this.canvas.addEventListener('dblclick', this.onDoubleClick.bind(this), false);
+        onClick(event) {
+            if (!this.options.enablePlanetSelection) return;
 
-            // Touch events
-            this.canvas.addEventListener('touchstart', this.onTouchStart.bind(this), false);
-            this.canvas.addEventListener('touchend', this.onTouchEnd.bind(this), false);
-            this.canvas.addEventListener('touchmove', this.onTouchMove.bind(this), false);
+            event.preventDefault();
 
-            // Hide tooltip when mouse leaves canvas
-            this.canvas.addEventListener('mouseleave', this.hideTooltip.bind(this), false);
+            // Update mouse coordinates
+            this.updateMouseCoordinates(event);
+
+            // Perform raycasting
+            const intersectedPlanet = this.raycastPlanets();
+
+            if (intersectedPlanet) {
+                // Check for double click
+                const currentTime = Date.now();
+                const isDoubleClick = (currentTime - this.lastClickTime) < this.doubleClickThreshold;
+                this.lastClickTime = currentTime;
+
+                if (isDoubleClick && this.options.enableDoubleClick) {
+                    this.handlePlanetDoubleClick(intersectedPlanet);
+                } else {
+                    this.handlePlanetClick(intersectedPlanet);
+                }
+            } else {
+                // Click on empty space - deselect
+                this.deselectPlanet();
+            }
         }
 
         /**
-         * Register a planet as selectable
-         * @param {THREE.Mesh} planetMesh - Planet mesh
-         * @param {Object} planetData - Planet data
+         * Touch event handlers
          */
-        addSelectableObject(planetMesh, planetData) {
-            if (planetMesh && planetData) {
-                this.selectableObjects.set(planetMesh, planetData);
-                planetMesh.userData.isSelectable = true;
-                planetMesh.userData.planetData = planetData;
+        onTouchStart(event) {
+            if (event.touches.length === 1) {
+                // Convert touch to mouse coordinates
+                const touch = event.touches[0];
+                this.updateMouseCoordinates(touch);
+            }
+        }
 
-                if (window.Helpers) {
-                    window.Helpers.log(`Added selectable object: ${planetData.name}`, 'debug');
+        onTouchEnd(event) {
+            if (!this.options.enablePlanetSelection) return;
+
+            if (event.changedTouches.length === 1) {
+                // Convert touch to mouse coordinates
+                const touch = event.changedTouches[0];
+                this.updateMouseCoordinates(touch);
+
+                // Perform raycasting
+                const intersectedPlanet = this.raycastPlanets();
+
+                if (intersectedPlanet) {
+                    this.handlePlanetClick(intersectedPlanet);
+                } else {
+                    this.deselectPlanet();
                 }
             }
         }
 
         /**
-         * Remove a planet from selectable objects
-         * @param {THREE.Mesh} planetMesh - Planet mesh to remove
+         * Keyboard event handler
          */
-        removeSelectableObject(planetMesh) {
-            if (this.selectableObjects.has(planetMesh)) {
-                this.selectableObjects.delete(planetMesh);
-                planetMesh.userData.isSelectable = false;
+        onKeyDown(event) {
+            switch (event.code) {
+                case 'Escape':
+                    this.deselectPlanet();
+                    this.hideTooltip();
+                    if (this.infoPanel) {
+                        this.infoPanel.hide();
+                    }
+                    break;
+
+                case 'KeyI':
+                    if (this.selectedPlanet && this.infoPanel) {
+                        this.infoPanel.toggle();
+                    }
+                    break;
+
+                // Number keys for planet selection
+                case 'Digit0':
+                case 'Digit1':
+                case 'Digit2':
+                case 'Digit3':
+                case 'Digit4':
+                case 'Digit5':
+                case 'Digit6':
+                case 'Digit7':
+                case 'Digit8':
+                case 'Digit9':
+                    this.handleNumberKeyPress(event.code);
+                    break;
             }
         }
 
         /**
-         * Update mouse position for raycasting
-         * @param {Event} event - Mouse event
+         * Window resize handler
          */
-        updateMousePosition(event) {
-            const rect = this.canvas.getBoundingClientRect();
+        onWindowResize() {
+            // Hide tooltip on resize
+            this.hideTooltip();
+        }
+
+        /**
+         * Update mouse coordinates for raycasting
+         */
+        updateMouseCoordinates(event) {
+            const rect = this.domElement.getBoundingClientRect();
             this.mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
             this.mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
         }
 
         /**
-         * Update touch position for raycasting
-         * @param {TouchEvent} event - Touch event
+         * Perform raycasting to find intersected planets
          */
-        updateTouchPosition(event) {
-            if (event.touches.length > 0) {
-                const rect = this.canvas.getBoundingClientRect();
-                const touch = event.touches[0];
-                this.touchPosition.x = ((touch.clientX - rect.left) / rect.width) * 2 - 1;
-                this.touchPosition.y = -((touch.clientY - rect.top) / rect.height) * 2 + 1;
-            }
-        }
+        raycastPlanets() {
+            // Update raycaster
+            this.raycaster.setFromCamera(this.mouse, this.camera);
 
-        /**
-         * Perform raycasting to find intersected objects
-         * @param {THREE.Vector2} screenPosition - Screen position for raycasting
-         * @returns {Array} Array of intersected objects
-         */
-        raycast(screenPosition) {
-            this.raycaster.setFromCamera(screenPosition, this.camera);
+            // Create array of planet meshes to test
+            const planetMeshes = [];
+            this.planets.forEach((planetGroup) => {
+                // Find the main planet mesh in the group
+                planetGroup.traverse((child) => {
+                    if (child.userData && child.userData.type === 'planetMesh') {
+                        planetMeshes.push(child);
+                    }
+                });
+            });
 
-            const selectableArray = Array.from(this.selectableObjects.keys());
-            const intersects = this.raycaster.intersectObjects(selectableArray, false);
-
-            return intersects;
-        }
-
-        /**
-         * Mouse move handler
-         * @param {MouseEvent} event - Mouse event
-         */
-        onMouseMove(event) {
-            if (!this.options.enableHover && !this.options.enableTooltips) return;
-
-            this.updateMousePosition(event);
-
-            if (!this.isMouseDown) {
-                this.handleHover();
-            }
-
-            // Update tooltip position
-            if (this.isTooltipVisible) {
-                this.updateTooltipPosition(event.clientX, event.clientY);
-            }
-        }
-
-        /**
-         * Mouse down handler
-         * @param {MouseEvent} event - Mouse event
-         */
-        onMouseDown(event) {
-            this.isMouseDown = true;
-            this.hideTooltip();
-        }
-
-        /**
-         * Mouse up handler
-         * @param {MouseEvent} event - Mouse event
-         */
-        onMouseUp(event) {
-            this.isMouseDown = false;
-        }
-
-        /**
-         * Click handler
-         * @param {MouseEvent} event - Mouse event
-         */
-        onClick(event) {
-            if (!this.options.enableSelection) return;
-
-            event.preventDefault();
-
-            this.updateMousePosition(event);
-            const intersects = this.raycast(this.mouse);
+            // Perform intersection test
+            const intersects = this.raycaster.intersectObjects(planetMeshes);
 
             if (intersects.length > 0) {
-                const clickedObject = intersects[0].object;
-                this.selectObject(clickedObject);
-            } else {
-                this.deselectObject();
+                const intersectedObject = intersects[0].object;
+                return intersectedObject.userData.planetData;
+            }
+
+            return null;
+        }
+
+        /**
+         * Handle hover state changes
+         */
+        handleHoverStateChange(intersectedPlanet) {
+            if (intersectedPlanet !== this.hoveredPlanet) {
+                // Remove hover effect from previous planet
+                if (this.hoveredPlanet) {
+                    this.removeHoverEffect(this.hoveredPlanet);
+                }
+
+                // Add hover effect to new planet
+                if (intersectedPlanet) {
+                    this.addHoverEffect(intersectedPlanet);
+                }
+
+                this.hoveredPlanet = intersectedPlanet;
+
+                // Update cursor
+                this.updateCursor(intersectedPlanet);
             }
         }
 
         /**
-         * Double click handler for focusing
-         * @param {MouseEvent} event - Mouse event
+         * Add hover effect to planet
          */
-        onDoubleClick(event) {
-            event.preventDefault();
+        addHoverEffect(planetData) {
+            const planetGroup = this.planets.get(planetData.name);
+            if (planetGroup) {
+                // Add subtle glow or outline effect
+                planetGroup.traverse((child) => {
+                    if (child.userData && child.userData.type === 'planetMesh') {
+                        // Store original material properties
+                        if (!child.userData.originalEmissive) {
+                            child.userData.originalEmissive = child.material.emissive?.clone() || new THREE.Color(0x000000);
+                        }
 
-            this.updateMousePosition(event);
-            const intersects = this.raycast(this.mouse);
+                        // Add hover glow
+                        if (child.material.emissive) {
+                            child.material.emissive.setHex(0x444444);
+                        }
+                    }
+                });
+            }
+        }
 
-            if (intersects.length > 0) {
-                const clickedObject = intersects[0].object;
-                const planetData = this.selectableObjects.get(clickedObject);
+        /**
+         * Remove hover effect from planet
+         */
+        removeHoverEffect(planetData) {
+            const planetGroup = this.planets.get(planetData.name);
+            if (planetGroup) {
+                planetGroup.traverse((child) => {
+                    if (child.userData && child.userData.type === 'planetMesh') {
+                        // Restore original emissive color
+                        if (child.userData.originalEmissive && child.material.emissive) {
+                            child.material.emissive.copy(child.userData.originalEmissive);
+                        }
+                    }
+                });
+            }
+        }
 
-                if (planetData) {
-                    this.focusOnPlanet(planetData.name);
+        /**
+         * Update cursor based on hover state
+         */
+        updateCursor(intersectedPlanet) {
+            if (this.domElement) {
+                this.domElement.style.cursor = intersectedPlanet ? 'pointer' : 'grab';
+            }
+        }
+
+        /**
+         * Handle planet click
+         */
+        handlePlanetClick(planetData) {
+            // Select the planet
+            this.selectPlanet(planetData);
+
+            // Show information panel
+            if (this.infoPanel) {
+                this.infoPanel.showPlanetInfo(planetData);
+            }
+
+            // Emit planet selection event
+            document.dispatchEvent(new CustomEvent('planetSelected', {
+                detail: { planet: planetData }
+            }));
+
+            if (window.Helpers) {
+                window.Helpers.log(`Planet selected: ${planetData.name}`, 'debug');
+            }
+        }
+
+        /**
+         * Handle planet double click
+         */
+        handlePlanetDoubleClick(planetData) {
+            // Focus camera on planet
+            document.dispatchEvent(new CustomEvent('focusPlanet', {
+                detail: { planet: planetData.name }
+            }));
+
+            if (window.Helpers) {
+                window.Helpers.log(`Double-clicked planet: ${planetData.name}`, 'debug');
+            }
+        }
+
+        /**
+         * Select a planet
+         */
+        selectPlanet(planetData) {
+            // Deselect previous planet
+            if (this.selectedPlanet) {
+                this.removeSelectionEffect(this.selectedPlanet);
+            }
+
+            // Select new planet
+            this.selectedPlanet = planetData;
+            this.addSelectionEffect(planetData);
+
+            // Update UI
+            if (window.ControlPanel) {
+                window.ControlPanel.updateSelectedPlanet(planetData.name);
+            }
+        }
+
+        /**
+         * Deselect current planet
+         */
+        deselectPlanet() {
+            if (this.selectedPlanet) {
+                this.removeSelectionEffect(this.selectedPlanet);
+                this.selectedPlanet = null;
+
+                // Update UI
+                if (window.ControlPanel) {
+                    window.ControlPanel.updateSelectedPlanet('None');
+                }
+
+                // Hide info panel
+                if (this.infoPanel) {
+                    this.infoPanel.hide();
                 }
             }
         }
 
         /**
-         * Touch start handler
-         * @param {TouchEvent} event - Touch event
+         * Add selection effect to planet
          */
-        onTouchStart(event) {
-            if (event.touches.length === 1) {
-                this.updateTouchPosition(event);
-                this.isMouseDown = true;
+        addSelectionEffect(planetData) {
+            const planetGroup = this.planets.get(planetData.name);
+            if (planetGroup) {
+                planetGroup.traverse((child) => {
+                    if (child.userData && child.userData.type === 'planetMesh') {
+                        // Add selection indicator (could be enhanced with outline shader)
+                        child.userData.isSelected = true;
+
+                        // Simple selection effect - brighter emissive
+                        if (child.material.emissive) {
+                            child.material.emissive.setHex(0x006600); // Green tint
+                        }
+                    }
+                });
             }
         }
 
         /**
-         * Touch end handler
-         * @param {TouchEvent} event - Touch event
+         * Remove selection effect from planet
          */
-        onTouchEnd(event) {
-            if (event.changedTouches.length === 1 && this.isMouseDown) {
-                const intersects = this.raycast(this.touchPosition);
+        removeSelectionEffect(planetData) {
+            const planetGroup = this.planets.get(planetData.name);
+            if (planetGroup) {
+                planetGroup.traverse((child) => {
+                    if (child.userData && child.userData.type === 'planetMesh') {
+                        child.userData.isSelected = false;
 
-                if (intersects.length > 0) {
-                    const touchedObject = intersects[0].object;
-                    this.selectObject(touchedObject);
-                }
-
-                this.isMouseDown = false;
+                        // Restore original emissive
+                        if (child.userData.originalEmissive && child.material.emissive) {
+                            child.material.emissive.copy(child.userData.originalEmissive);
+                        }
+                    }
+                });
             }
         }
 
         /**
-         * Touch move handler
-         * @param {TouchEvent} event - Touch event
+         * Update tooltip
          */
-        onTouchMove(event) {
-            if (event.touches.length === 1) {
-                this.updateTouchPosition(event);
-            }
-        }
-
-        /**
-         * Handle hover effects and tooltips
-         */
-        handleHover() {
-            const intersects = this.raycast(this.mouse);
-
-            if (intersects.length > 0) {
-                const hoveredObject = intersects[0].object;
-
-                if (hoveredObject !== this.hoveredObject) {
-                    this.setHoveredObject(hoveredObject);
-                }
-            } else {
-                if (this.hoveredObject) {
-                    this.setHoveredObject(null);
-                }
-            }
-        }
-
-        /**
-         * Set hovered object and show tooltip
-         * @param {THREE.Mesh} object - Object being hovered
-         */
-        setHoveredObject(object) {
-            // Clear previous hover
-            if (this.hoveredObject) {
-                this.removeHoverEffect(this.hoveredObject);
-            }
-
-            this.hoveredObject = object;
-
-            if (object) {
-                this.addHoverEffect(object);
-
-                if (this.options.enableTooltips) {
-                    this.showTooltipForObject(object);
-                }
+        updateTooltip(event, intersectedPlanet) {
+            if (intersectedPlanet) {
+                this.showTooltip(event, intersectedPlanet);
             } else {
                 this.hideTooltip();
             }
         }
 
         /**
-         * Select an object and show information
-         * @param {THREE.Mesh} object - Object to select
+         * Show tooltip for planet
          */
-        selectObject(object) {
-            // Clear previous selection
-            if (this.selectedObject) {
-                this.removeSelectionEffect(this.selectedObject);
-            }
-
-            this.selectedObject = object;
-
-            if (object) {
-                this.addSelectionEffect(object);
-
-                const planetData = this.selectableObjects.get(object);
-                if (planetData) {
-                    this.showPlanetInformation(planetData);
-
-                    // Emit selection event
-                    document.dispatchEvent(new CustomEvent('planetSelected', {
-                        detail: { planet: planetData }
-                    }));
-
-                    if (window.ControlPanel) {
-                        window.ControlPanel.updateSelectedPlanet(planetData.name);
-                    }
-
-                    if (window.NotificationSystem) {
-                        window.NotificationSystem.showInfo(`Selected ${planetData.name}`);
-                    }
-                }
-            }
-        }
-
-        /**
-         * Deselect current object
-         */
-        deselectObject() {
-            if (this.selectedObject) {
-                this.removeSelectionEffect(this.selectedObject);
-                this.selectedObject = null;
-
-                this.hidePlanetInformation();
-
-                document.dispatchEvent(new CustomEvent('planetDeselected'));
-
-                if (window.ControlPanel) {
-                    window.ControlPanel.updateSelectedPlanet('None');
-                }
-            }
-        }
-
-        /**
-         * Add visual hover effect to object
-         * @param {THREE.Mesh} object - Object to add effect to
-         */
-        addHoverEffect(object) {
-            if (!object.userData.originalEmissive) {
-                object.userData.originalEmissive = object.material.emissive?.clone() || new THREE.Color(0x000000);
-                object.userData.originalEmissiveIntensity = object.material.emissiveIntensity || 0;
-            }
-
-            // Add subtle glow
-            object.material.emissive = new THREE.Color(this.options.hoverColor);
-            object.material.emissiveIntensity = 0.1;
-
-            // Change cursor
-            this.canvas.style.cursor = 'pointer';
-        }
-
-        /**
-         * Remove hover effect from object
-         * @param {THREE.Mesh} object - Object to remove effect from
-         */
-        removeHoverEffect(object) {
-            if (object.userData.originalEmissive) {
-                object.material.emissive = object.userData.originalEmissive;
-                object.material.emissiveIntensity = object.userData.originalEmissiveIntensity;
-            }
-
-            // Reset cursor
-            this.canvas.style.cursor = 'grab';
-        }
-
-        /**
-         * Add visual selection effect to object
-         * @param {THREE.Mesh} object - Object to add effect to
-         */
-        addSelectionEffect(object) {
-            if (!object.userData.originalEmissive) {
-                object.userData.originalEmissive = object.material.emissive?.clone() || new THREE.Color(0x000000);
-                object.userData.originalEmissiveIntensity = object.material.emissiveIntensity || 0;
-            }
-
-            // Add selection glow
-            object.material.emissive = new THREE.Color(this.options.selectionColor);
-            object.material.emissiveIntensity = 0.2;
-        }
-
-        /**
-         * Remove selection effect from object
-         * @param {THREE.Mesh} object - Object to remove effect from
-         */
-        removeSelectionEffect(object) {
-            if (object.userData.originalEmissive) {
-                object.material.emissive = object.userData.originalEmissive;
-                object.material.emissiveIntensity = object.userData.originalEmissiveIntensity;
-            }
-        }
-
-        /**
-         * Show tooltip for object
-         * @param {THREE.Mesh} object - Object to show tooltip for
-         */
-        showTooltipForObject(object) {
-            const planetData = this.selectableObjects.get(object);
-            if (!planetData) return;
-
-            // Clear existing timeout
+        showTooltip(event, planetData) {
             if (this.tooltipTimeout) {
                 clearTimeout(this.tooltipTimeout);
             }
 
-            // Show tooltip after delay
             this.tooltipTimeout = setTimeout(() => {
-                this.showTooltip(planetData);
-            }, this.options.tooltipDelay);
-        }
+                if (this.tooltip) {
+                    // Update tooltip content
+                    const title = this.tooltip.querySelector('#tooltip-title');
+                    const info = this.tooltip.querySelector('#tooltip-info');
 
-        /**
-         * Show tooltip with planet information
-         * @param {Object} planetData - Planet data
-         */
-        showTooltip(planetData) {
-            const titleElement = document.getElementById('tooltip-title');
-            const infoElement = document.getElementById('tooltip-info');
+                    if (title && info) {
+                        title.textContent = planetData.name;
+                        info.textContent = `Distance: ${planetData.distance_from_sun} AU • Diameter: ${Math.round(planetData.diameter)} km`;
+                    }
 
-            if (titleElement && infoElement) {
-                titleElement.textContent = planetData.name;
+                    // Position tooltip
+                    this.positionTooltip(event);
 
-                const info = [];
-                info.push(`Distance: ${planetData.distance_from_sun.toFixed(2)} AU`);
-                info.push(`Diameter: ${planetData.diameter.toLocaleString()} km`);
-                if (planetData.orbital_period) {
-                    const years = (planetData.orbital_period / 365.25).toFixed(1);
-                    info.push(`Orbital Period: ${years} years`);
+                    // Show tooltip
+                    this.tooltip.classList.remove('hidden');
+                    this.tooltip.style.opacity = '1';
+                    this.isTooltipVisible = true;
                 }
-
-                infoElement.textContent = info.join(' • ');
-
-                this.tooltip.classList.remove('hidden');
-                this.isTooltipVisible = true;
-            }
+            }, this.options.tooltipDelay);
         }
 
         /**
@@ -487,152 +561,149 @@ window.InteractionManager = (function() {
                 this.tooltipTimeout = null;
             }
 
-            if (this.tooltip) {
-                this.tooltip.classList.add('hidden');
+            if (this.tooltip && this.isTooltipVisible) {
+                this.tooltip.style.opacity = '0';
+                setTimeout(() => {
+                    if (this.tooltip) {
+                        this.tooltip.classList.add('hidden');
+                    }
+                }, 300);
                 this.isTooltipVisible = false;
             }
         }
 
         /**
-         * Update tooltip position
-         * @param {number} x - Screen X position
-         * @param {number} y - Screen Y position
+         * Position tooltip near mouse cursor
          */
-        updateTooltipPosition(x, y) {
-            if (this.tooltip && this.isTooltipVisible) {
-                // Offset to avoid cursor
-                const offsetX = 15;
-                const offsetY = -10;
+        positionTooltip(event) {
+            if (!this.tooltip) return;
 
-                // Keep tooltip within viewport
-                const rect = this.tooltip.getBoundingClientRect();
-                const viewportWidth = window.innerWidth;
-                const viewportHeight = window.innerHeight;
+            const offset = 10;
+            let x = event.clientX + offset;
+            let y = event.clientY - this.tooltip.offsetHeight - offset;
 
-                let tooltipX = x + offsetX;
-                let tooltipY = y + offsetY;
+            // Keep tooltip within viewport
+            const viewportWidth = window.innerWidth;
+            const viewportHeight = window.innerHeight;
 
-                // Adjust if tooltip would go off screen
-                if (tooltipX + rect.width > viewportWidth) {
-                    tooltipX = x - rect.width - offsetX;
-                }
-                if (tooltipY < 0) {
-                    tooltipY = y - offsetY + 20;
-                }
+            if (x + this.tooltip.offsetWidth > viewportWidth) {
+                x = event.clientX - this.tooltip.offsetWidth - offset;
+            }
 
-                this.tooltip.style.left = tooltipX + 'px';
-                this.tooltip.style.top = tooltipY + 'px';
+            if (y < 0) {
+                y = event.clientY + offset;
+            }
+
+            this.tooltip.style.left = `${x}px`;
+            this.tooltip.style.top = `${y}px`;
+        }
+
+        /**
+         * Handle number key presses for planet selection
+         */
+        handleNumberKeyPress(keyCode) {
+            const number = parseInt(keyCode.replace('Digit', ''));
+
+            // Get planet by display order
+            const planetArray = Array.from(this.planets.values());
+            const targetPlanet = planetArray.find(planetGroup => {
+                const planetData = planetGroup.userData.planetData;
+                return planetData.display_order === number;
+            });
+
+            if (targetPlanet) {
+                const planetData = targetPlanet.userData.planetData;
+                this.handlePlanetClick(planetData);
+
+                // Also focus camera on the planet
+                document.dispatchEvent(new CustomEvent('focusPlanet', {
+                    detail: { planet: planetData.name }
+                }));
             }
         }
 
         /**
-         * Show detailed planet information panel
-         * @param {Object} planetData - Planet data
+         * Update planet references
          */
-        showPlanetInformation(planetData) {
-            // This will trigger the info panel system
-            document.dispatchEvent(new CustomEvent('showPlanetInfo', {
-                detail: { planetData }
-            }));
+        updatePlanets(planets) {
+            this.planets = planets;
         }
 
         /**
-         * Hide planet information panel
+         * Set labels visibility
          */
-        hidePlanetInformation() {
-            document.dispatchEvent(new CustomEvent('hidePlanetInfo'));
-        }
-
-        /**
-         * Focus camera on planet
-         * @param {string} planetName - Name of planet to focus on
-         */
-        focusOnPlanet(planetName) {
-            document.dispatchEvent(new CustomEvent('focusPlanet', {
-                detail: { planet: planetName.toLowerCase() }
-            }));
-        }
-
-        /**
-         * Get currently selected planet
-         * @returns {Object|null} Selected planet data
-         */
-        getSelectedPlanet() {
-            if (this.selectedObject) {
-                return this.selectableObjects.get(this.selectedObject);
+        setLabelsVisible(visible) {
+            // This would control planet label visibility
+            // Implementation depends on label system
+            if (window.Helpers) {
+                window.Helpers.log(`Planet labels ${visible ? 'enabled' : 'disabled'}`, 'debug');
             }
-            return null;
         }
 
         /**
-         * Get currently hovered planet
-         * @returns {Object|null} Hovered planet data
+         * Update interaction manager
          */
-        getHoveredPlanet() {
-            if (this.hoveredObject) {
-                return this.selectableObjects.get(this.hoveredObject);
+        update(deltaTime) {
+            // Update any animations or time-based effects
+            if (this.selectedPlanet) {
+                // Could add pulsing effects or other animations
             }
-            return null;
         }
 
         /**
          * Get interaction statistics
-         * @returns {Object} Interaction stats
          */
         getStats() {
             return {
-                selectableObjects: this.selectableObjects.size,
-                hasSelection: !!this.selectedObject,
-                hasHover: !!this.hoveredObject,
-                selectedPlanet: this.getSelectedPlanet()?.name || null,
-                hoveredPlanet: this.getHoveredPlanet()?.name || null,
-                tooltipsEnabled: this.options.enableTooltips,
-                selectionEnabled: this.options.enableSelection
+                isInitialized: this.isInitialized,
+                selectedPlanet: this.selectedPlanet?.name || null,
+                hoveredPlanet: this.hoveredPlanet?.name || null,
+                tooltipVisible: this.isTooltipVisible,
+                planetsCount: this.planets.size
             };
-        }
-
-        /**
-         * Enable or disable interaction features
-         * @param {Object} features - Features to enable/disable
-         */
-        setFeatures(features) {
-            Object.assign(this.options, features);
         }
 
         /**
          * Dispose of interaction manager
          */
         dispose() {
-            // Remove event listeners
-            this.canvas.removeEventListener('mousemove', this.onMouseMove);
-            this.canvas.removeEventListener('mousedown', this.onMouseDown);
-            this.canvas.removeEventListener('mouseup', this.onMouseUp);
-            this.canvas.removeEventListener('click', this.onClick);
-            this.canvas.removeEventListener('dblclick', this.onDoubleClick);
-            this.canvas.removeEventListener('touchstart', this.onTouchStart);
-            this.canvas.removeEventListener('touchend', this.onTouchEnd);
-            this.canvas.removeEventListener('touchmove', this.onTouchMove);
-            this.canvas.removeEventListener('mouseleave', this.hideTooltip);
-
             // Clear timeouts
             if (this.tooltipTimeout) {
                 clearTimeout(this.tooltipTimeout);
             }
 
-            // Remove tooltip
+            // Remove tooltip element
             if (this.tooltip && this.tooltip.parentNode) {
                 this.tooltip.parentNode.removeChild(this.tooltip);
             }
 
+            // Dispose info panel
+            if (this.infoPanel) {
+                this.infoPanel.dispose();
+            }
+
+            // Remove event listeners
+            this.eventListeners.forEach(({ target, type, listener }) => {
+                target.removeEventListener(type, listener);
+            });
+            this.eventListeners = [];
+
             // Clear references
-            this.selectableObjects.clear();
-            this.selectedObject = null;
-            this.hoveredObject = null;
+            this.selectedPlanet = null;
+            this.hoveredPlanet = null;
+            this.planets.clear();
+
+            this.isInitialized = false;
 
             if (window.Helpers) {
-                window.Helpers.log('InteractionManager disposed', 'debug');
+                window.Helpers.log('Interaction manager disposed', 'debug');
             }
         }
+
+        // Getters
+        get SelectedPlanet() { return this.selectedPlanet; }
+        get HoveredPlanet() { return this.hoveredPlanet; }
+        get IsInitialized() { return this.isInitialized; }
     }
 
     // Public API
@@ -640,10 +711,15 @@ window.InteractionManager = (function() {
         InteractionManager,
 
         // Factory function
-        create: (camera, scene, canvas, options = {}) => {
-            return new InteractionManager(camera, scene, canvas, options);
+        create: (options = {}) => {
+            return new InteractionManager(options);
         }
     };
 })();
+
+// Make available globally
+if (typeof module !== 'undefined' && module.exports) {
+    module.exports = window.InteractionManager;
+}
 
 console.log('InteractionManager module loaded successfully');

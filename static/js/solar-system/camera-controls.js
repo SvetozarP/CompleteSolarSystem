@@ -1,82 +1,114 @@
 // static/js/solar-system/camera-controls.js
-// Mouse camera controls for solar system navigation
+// Enhanced camera controls with smooth mouse interaction and focus capabilities - COMPLETELY FIXED
 
 window.CameraControls = (function() {
     'use strict';
 
     /**
-     * Camera control system for orbital and free-look navigation
+     * Camera controls class for smooth 3D navigation
      */
     class CameraControls {
-        constructor(camera, canvas, options = {}) {
-            this.camera = camera;
-            this.canvas = canvas;
-
+        constructor(options = {}) {
             this.options = {
-                enableRotate: true,
-                enableZoom: true,
-                enablePan: true,
-                rotateSpeed: 1.0,
-                zoomSpeed: 1.0,
-                panSpeed: 1.0,
-                minDistance: 10,
-                maxDistance: 500,
-                minPolarAngle: 0,
-                maxPolarAngle: Math.PI,
-                autoRotate: false,
-                autoRotateSpeed: 2.0,
+                enableDamping: true,
                 dampingFactor: 0.05,
+                enableZoom: true,
+                enableRotate: true,
+                enablePan: true,
+                maxDistance: 500,
+                minDistance: 5,
+                maxPolarAngle: Math.PI,
+                minPolarAngle: 0,
                 ...options
             };
 
-            // Internal state
+            // Required parameters
+            this.camera = options.camera;
+            this.domElement = options.domElement;
+
+            if (!this.camera || !this.domElement) {
+                throw new Error('CameraControls requires camera and domElement');
+            }
+
+            // Control state
             this.target = new THREE.Vector3(0, 0, 0);
             this.spherical = new THREE.Spherical();
             this.sphericalDelta = new THREE.Spherical();
-            this.scale = 1;
-            this.panOffset = new THREE.Vector3();
-            this.zoomChanged = false;
 
             // Mouse state
-            this.mouseState = {
-                isDown: false,
-                button: -1,
-                startX: 0,
-                startY: 0,
-                endX: 0,
-                endY: 0
+            this.rotateStart = new THREE.Vector2();
+            this.rotateEnd = new THREE.Vector2();
+            this.rotateDelta = new THREE.Vector2();
+
+            this.panStart = new THREE.Vector2();
+            this.panEnd = new THREE.Vector2();
+            this.panDelta = new THREE.Vector2();
+
+            this.zoomStart = new THREE.Vector2();
+            this.zoomEnd = new THREE.Vector2();
+            this.zoomDelta = new THREE.Vector2();
+
+            // Touch state
+            this.dollyStart = new THREE.Vector2();
+            this.dollyEnd = new THREE.Vector2();
+            this.dollyDelta = new THREE.Vector2();
+
+            // Control states
+            this.STATE = {
+                NONE: -1,
+                ROTATE: 0,
+                DOLLY: 1,
+                PAN: 2,
+                TOUCH_ROTATE: 3,
+                TOUCH_PAN: 4,
+                TOUCH_DOLLY_PAN: 5,
+                TOUCH_DOLLY_ROTATE: 6
             };
 
-            // Touch state for mobile support
-            this.touchState = {
-                touches: []
-            };
+            this.state = this.STATE.NONE;
 
-            // Control state
-            this.enabled = true;
-            this.isUserInteracting = false;
+            // Speed settings
+            this.rotateSpeed = 1.0;
+            this.zoomSpeed = 1.0;
+            this.panSpeed = 1.0;
 
-            // Initialize
-            this.init();
+            // Event listeners
+            this.eventListeners = [];
+
+            // Animation
+            this.isAnimating = false;
+            this.animationId = null;
+
+            this.isInitialized = false;
         }
 
         /**
          * Initialize camera controls
          */
-        init() {
-            // Set initial camera position relative to target
-            this.updateSphericalFromCamera();
+        async init() {
+            try {
+                // Set initial spherical coordinates from camera position
+                this.updateSphericalFromCamera();
 
-            // Bind event listeners
-            this.bindEventListeners();
+                // Setup event listeners
+                this.setupEventListeners();
 
-            if (window.Helpers) {
-                window.Helpers.log('Camera controls initialized', 'debug');
+                this.isInitialized = true;
+
+                if (window.Helpers) {
+                    window.Helpers.log('Camera controls initialized', 'debug');
+                }
+
+            } catch (error) {
+                if (window.Helpers) {
+                    window.Helpers.handleError(error, 'CameraControls.init');
+                }
+                throw error;
             }
         }
 
         /**
-         * Update spherical coordinates from camera position
+         * Update spherical coordinates from current camera position
          */
         updateSphericalFromCamera() {
             const offset = new THREE.Vector3();
@@ -85,301 +117,342 @@ window.CameraControls = (function() {
         }
 
         /**
-         * Bind mouse and keyboard event listeners
+         * Setup event listeners for mouse and keyboard
          */
-        bindEventListeners() {
-            // Ensure canvas exists
-            if (!this.canvas) {
-                console.error('Canvas element not found for camera controls');
-                return;
-            }
-
+        setupEventListeners() {
             // Mouse events
-            this.canvas.addEventListener('mousedown', this.onMouseDown.bind(this), false);
-            this.canvas.addEventListener('mousemove', this.onMouseMove.bind(this), false);
-            this.canvas.addEventListener('mouseup', this.onMouseUp.bind(this), false);
+            this.addEventListener('contextmenu', this.onContextMenu.bind(this));
+            this.addEventListener('mousedown', this.onMouseDown.bind(this));
+            this.addEventListener('wheel', this.onMouseWheel.bind(this));
 
-            // Wheel event with passive option to fix Chrome warning
-            this.canvas.addEventListener('wheel', this.onMouseWheel.bind(this), { passive: false });
+            // Touch events
+            this.addEventListener('touchstart', this.onTouchStart.bind(this));
+            this.addEventListener('touchend', this.onTouchEnd.bind(this));
+            this.addEventListener('touchmove', this.onTouchMove.bind(this));
 
-            // Touch events with passive option to fix Chrome warnings
-            this.canvas.addEventListener('touchstart', this.onTouchStart.bind(this), { passive: false });
-            this.canvas.addEventListener('touchmove', this.onTouchMove.bind(this), { passive: false });
-            this.canvas.addEventListener('touchend', this.onTouchEnd.bind(this), false);
-
-            // Context menu prevention
-            this.canvas.addEventListener('contextmenu', this.onContextMenu.bind(this), false);
-
-            // Focus events
-            this.canvas.addEventListener('focus', () => this.canvas.style.outline = 'none', false);
+            // Window events
+            this.addEventListener('keydown', this.onKeyDown.bind(this), window);
         }
 
         /**
-         * Mouse down handler
-         * @param {MouseEvent} event - Mouse event
+         * Add event listener with cleanup tracking
          */
+        addEventListener(type, listener, element = null) {
+            const target = element || this.domElement;
+            target.addEventListener(type, listener);
+            this.eventListeners.push({ target, type, listener });
+        }
+
+        /**
+         * Mouse event handlers
+         */
+        onContextMenu(event) {
+            event.preventDefault();
+        }
+
         onMouseDown(event) {
-            if (!this.enabled) return;
-
             event.preventDefault();
 
-            this.mouseState.isDown = true;
-            this.mouseState.button = event.button;
-            this.mouseState.startX = event.clientX;
-            this.mouseState.startY = event.clientY;
-            this.isUserInteracting = true;
-
-            // Change cursor based on button
             switch (event.button) {
-                case 0: // Left button - rotate
-                    this.canvas.style.cursor = 'grabbing';
+                case 0: // Left button
+                    if (this.options.enableRotate) {
+                        this.handleMouseDownRotate(event);
+                        this.state = this.STATE.ROTATE;
+                    }
                     break;
-                case 1: // Middle button - pan
-                    this.canvas.style.cursor = 'move';
+
+                case 1: // Middle button
+                    if (this.options.enablePan) {
+                        this.handleMouseDownPan(event);
+                        this.state = this.STATE.PAN;
+                    }
                     break;
-                case 2: // Right button - pan
-                    this.canvas.style.cursor = 'move';
+
+                case 2: // Right button
+                    if (this.options.enablePan) {
+                        this.handleMouseDownPan(event);
+                        this.state = this.STATE.PAN;
+                    }
                     break;
+            }
+
+            if (this.state !== this.STATE.NONE) {
+                const mouseMoveHandler = this.onMouseMove.bind(this);
+                const mouseUpHandler = this.onMouseUp.bind(this);
+
+                document.addEventListener('mousemove', mouseMoveHandler);
+                document.addEventListener('mouseup', mouseUpHandler);
+
+                // Store handlers for cleanup
+                this.currentMouseMoveHandler = mouseMoveHandler;
+                this.currentMouseUpHandler = mouseUpHandler;
             }
         }
 
-        /**
-         * Mouse move handler
-         * @param {MouseEvent} event - Mouse event
-         */
         onMouseMove(event) {
-            if (!this.enabled) return;
-
             event.preventDefault();
 
-            if (this.mouseState.isDown) {
-                this.mouseState.endX = event.clientX;
-                this.mouseState.endY = event.clientY;
+            switch (this.state) {
+                case this.STATE.ROTATE:
+                    if (this.options.enableRotate) {
+                        this.handleMouseMoveRotate(event);
+                    }
+                    break;
 
-                const deltaX = this.mouseState.endX - this.mouseState.startX;
-                const deltaY = this.mouseState.endY - this.mouseState.startY;
+                case this.STATE.PAN:
+                    if (this.options.enablePan) {
+                        this.handleMouseMovePan(event);
+                    }
+                    break;
+            }
+        }
 
-                switch (this.mouseState.button) {
-                    case 0: // Left button - rotate
-                        if (this.options.enableRotate) {
-                            this.rotateLeft(2 * Math.PI * deltaX / this.canvas.clientWidth * this.options.rotateSpeed);
-                            this.rotateUp(2 * Math.PI * deltaY / this.canvas.clientHeight * this.options.rotateSpeed);
-                        }
-                        break;
-                    case 1: // Middle button - pan
-                    case 2: // Right button - pan
-                        if (this.options.enablePan) {
-                            this.pan(deltaX, deltaY);
-                        }
-                        break;
-                }
+        onMouseUp(event) {
+            event.preventDefault();
 
-                this.mouseState.startX = this.mouseState.endX;
-                this.mouseState.startY = this.mouseState.endY;
+            if (this.currentMouseMoveHandler) {
+                document.removeEventListener('mousemove', this.currentMouseMoveHandler);
+            }
+            if (this.currentMouseUpHandler) {
+                document.removeEventListener('mouseup', this.currentMouseUpHandler);
+            }
 
-                this.update();
-            } else {
-                // Update cursor when hovering
-                this.canvas.style.cursor = 'grab';
+            this.state = this.STATE.NONE;
+        }
+
+        onMouseWheel(event) {
+            event.preventDefault();
+
+            if (this.options.enableZoom) {
+                this.handleMouseWheel(event);
             }
         }
 
         /**
-         * Mouse up handler
-         * @param {MouseEvent} event - Mouse event
+         * Mouse action handlers
          */
-        onMouseUp(event) {
-            if (!this.enabled) return;
-
-            event.preventDefault();
-
-            this.mouseState.isDown = false;
-            this.mouseState.button = -1;
-            this.isUserInteracting = false;
-            this.canvas.style.cursor = 'grab';
+        handleMouseDownRotate(event) {
+            this.rotateStart.set(event.clientX, event.clientY);
         }
 
-        /**
-         * Mouse wheel handler for zooming
-         * @param {WheelEvent} event - Wheel event
-         */
-        onMouseWheel(event) {
-            if (!this.enabled || !this.options.enableZoom) return;
+        handleMouseMoveRotate(event) {
+            this.rotateEnd.set(event.clientX, event.clientY);
+            this.rotateDelta.subVectors(this.rotateEnd, this.rotateStart).multiplyScalar(this.rotateSpeed);
 
-            event.preventDefault();
-            event.stopPropagation();
+            const element = this.domElement;
 
-            const delta = event.deltaY;
+            // Rotate around Y axis (azimuth)
+            this.rotateLeft(2 * Math.PI * this.rotateDelta.x / element.clientHeight);
 
-            if (delta < 0) {
-                this.dollyIn(this.getZoomScale());
-            } else if (delta > 0) {
+            // Rotate around X axis (polar)
+            this.rotateUp(2 * Math.PI * this.rotateDelta.y / element.clientHeight);
+
+            this.rotateStart.copy(this.rotateEnd);
+            this.update();
+        }
+
+        handleMouseDownPan(event) {
+            this.panStart.set(event.clientX, event.clientY);
+        }
+
+        handleMouseMovePan(event) {
+            this.panEnd.set(event.clientX, event.clientY);
+            this.panDelta.subVectors(this.panEnd, this.panStart).multiplyScalar(this.panSpeed);
+
+            this.pan(this.panDelta.x, this.panDelta.y);
+
+            this.panStart.copy(this.panEnd);
+            this.update();
+        }
+
+        handleMouseWheel(event) {
+            if (event.deltaY < 0) {
                 this.dollyOut(this.getZoomScale());
+            } else if (event.deltaY > 0) {
+                this.dollyIn(this.getZoomScale());
             }
 
             this.update();
         }
 
         /**
-         * Touch start handler
-         * @param {TouchEvent} event - Touch event
+         * Touch event handlers
          */
         onTouchStart(event) {
-            if (!this.enabled) return;
+            switch (event.touches.length) {
+                case 1:
+                    if (this.options.enableRotate) {
+                        this.handleTouchStartRotate(event);
+                        this.state = this.STATE.TOUCH_ROTATE;
+                    }
+                    break;
 
-            event.preventDefault();
-
-            this.touchState.touches = Array.from(event.touches);
-            this.isUserInteracting = true;
-
-            if (this.touchState.touches.length === 1) {
-                // Single touch - rotate
-                this.mouseState.startX = this.touchState.touches[0].clientX;
-                this.mouseState.startY = this.touchState.touches[0].clientY;
+                case 2:
+                    if (this.options.enableZoom && this.options.enablePan) {
+                        this.handleTouchStartDollyPan(event);
+                        this.state = this.STATE.TOUCH_DOLLY_PAN;
+                    }
+                    break;
             }
         }
 
-        /**
-         * Touch move handler
-         * @param {TouchEvent} event - Touch event
-         */
         onTouchMove(event) {
-            if (!this.enabled) return;
-
             event.preventDefault();
 
-            const touches = Array.from(event.touches);
+            switch (this.state) {
+                case this.STATE.TOUCH_ROTATE:
+                    if (this.options.enableRotate) {
+                        this.handleTouchMoveRotate(event);
+                    }
+                    break;
 
-            if (touches.length === 1 && this.touchState.touches.length === 1) {
-                // Single touch - rotate
-                const deltaX = touches[0].clientX - this.mouseState.startX;
-                const deltaY = touches[0].clientY - this.mouseState.startY;
+                case this.STATE.TOUCH_DOLLY_PAN:
+                    if (this.options.enableZoom && this.options.enablePan) {
+                        this.handleTouchMoveDollyPan(event);
+                    }
+                    break;
+            }
+        }
 
-                if (this.options.enableRotate) {
-                    this.rotateLeft(2 * Math.PI * deltaX / this.canvas.clientWidth * this.options.rotateSpeed);
-                    this.rotateUp(2 * Math.PI * deltaY / this.canvas.clientHeight * this.options.rotateSpeed);
-                }
+        onTouchEnd(event) {
+            this.state = this.STATE.NONE;
+        }
 
-                this.mouseState.startX = touches[0].clientX;
-                this.mouseState.startY = touches[0].clientY;
+        /**
+         * Touch action handlers
+         */
+        handleTouchStartRotate(event) {
+            this.rotateStart.set(event.touches[0].pageX, event.touches[0].pageY);
+        }
 
-                this.update();
-            } else if (touches.length === 2 && this.touchState.touches.length === 2) {
-                // Two finger pinch - zoom
-                const dx = touches[0].clientX - touches[1].clientX;
-                const dy = touches[0].clientY - touches[1].clientY;
+        handleTouchMoveRotate(event) {
+            this.rotateEnd.set(event.touches[0].pageX, event.touches[0].pageY);
+            this.rotateDelta.subVectors(this.rotateEnd, this.rotateStart).multiplyScalar(this.rotateSpeed);
+
+            const element = this.domElement;
+
+            this.rotateLeft(2 * Math.PI * this.rotateDelta.x / element.clientHeight);
+            this.rotateUp(2 * Math.PI * this.rotateDelta.y / element.clientHeight);
+
+            this.rotateStart.copy(this.rotateEnd);
+            this.update();
+        }
+
+        handleTouchStartDollyPan(event) {
+            if (this.options.enableZoom) {
+                const dx = event.touches[0].pageX - event.touches[1].pageX;
+                const dy = event.touches[0].pageY - event.touches[1].pageY;
+                const distance = Math.sqrt(dx * dx + dy * dy);
+                this.dollyStart.set(0, distance);
+            }
+
+            if (this.options.enablePan) {
+                const x = 0.5 * (event.touches[0].pageX + event.touches[1].pageX);
+                const y = 0.5 * (event.touches[0].pageY + event.touches[1].pageY);
+                this.panStart.set(x, y);
+            }
+        }
+
+        handleTouchMoveDollyPan(event) {
+            if (this.options.enableZoom) {
+                const dx = event.touches[0].pageX - event.touches[1].pageX;
+                const dy = event.touches[0].pageY - event.touches[1].pageY;
                 const distance = Math.sqrt(dx * dx + dy * dy);
 
-                const prevDx = this.touchState.touches[0].clientX - this.touchState.touches[1].clientX;
-                const prevDy = this.touchState.touches[0].clientY - this.touchState.touches[1].clientY;
-                const prevDistance = Math.sqrt(prevDx * prevDx + prevDy * prevDy);
+                this.dollyEnd.set(0, distance);
+                this.dollyDelta.set(0, Math.pow(this.dollyEnd.y / this.dollyStart.y, this.zoomSpeed));
 
-                if (prevDistance > 0) {
-                    const scale = distance / prevDistance;
-                    if (scale > 1) {
-                        this.dollyIn(scale);
-                    } else {
-                        this.dollyOut(1 / scale);
-                    }
-                    this.update();
-                }
+                this.dollyIn(this.dollyDelta.y);
+                this.dollyStart.copy(this.dollyEnd);
             }
 
-            this.touchState.touches = touches;
+            if (this.options.enablePan) {
+                const x = 0.5 * (event.touches[0].pageX + event.touches[1].pageX);
+                const y = 0.5 * (event.touches[0].pageY + event.touches[1].pageY);
+
+                this.panEnd.set(x, y);
+                this.panDelta.subVectors(this.panEnd, this.panStart).multiplyScalar(this.panSpeed);
+
+                this.pan(this.panDelta.x, this.panDelta.y);
+                this.panStart.copy(this.panEnd);
+            }
+
+            this.update();
         }
 
         /**
-         * Touch end handler
-         * @param {TouchEvent} event - Touch event
+         * Keyboard event handler
          */
-        onTouchEnd(event) {
-            if (!this.enabled) return;
-
-            event.preventDefault();
-
-            this.touchState.touches = Array.from(event.touches);
-            this.isUserInteracting = false;
+        onKeyDown(event) {
+            // Handle keyboard shortcuts
+            switch (event.code) {
+                case 'ArrowUp':
+                    this.pan(0, this.panSpeed * 10);
+                    this.update();
+                    break;
+                case 'ArrowDown':
+                    this.pan(0, -this.panSpeed * 10);
+                    this.update();
+                    break;
+                case 'ArrowLeft':
+                    this.pan(this.panSpeed * 10, 0);
+                    this.update();
+                    break;
+                case 'ArrowRight':
+                    this.pan(-this.panSpeed * 10, 0);
+                    this.update();
+                    break;
+            }
         }
 
         /**
-         * Context menu handler
-         * @param {Event} event - Context menu event
-         */
-        onContextMenu(event) {
-            if (!this.enabled) return;
-            event.preventDefault();
-        }
-
-        /**
-         * Rotate camera left (around Y axis)
-         * @param {number} angle - Rotation angle in radians
+         * Camera movement methods
          */
         rotateLeft(angle) {
             this.sphericalDelta.theta -= angle;
         }
 
-        /**
-         * Rotate camera up (around X axis)
-         * @param {number} angle - Rotation angle in radians
-         */
         rotateUp(angle) {
             this.sphericalDelta.phi -= angle;
         }
 
-        /**
-         * Pan camera
-         * @param {number} deltaX - X delta
-         * @param {number} deltaY - Y delta
-         */
         pan(deltaX, deltaY) {
             const offset = new THREE.Vector3();
+            offset.copy(this.camera.position).sub(this.target);
 
-            // Calculate pan distance
-            const position = this.camera.position.clone();
-            offset.copy(position).sub(this.target);
-
+            // Half of the fov is center to top of screen
             let targetDistance = offset.length();
             targetDistance *= Math.tan((this.camera.fov / 2) * Math.PI / 180.0);
 
             // Pan left/right
             const panLeft = new THREE.Vector3();
             panLeft.setFromMatrixColumn(this.camera.matrix, 0);
-            panLeft.multiplyScalar(-2 * deltaX * targetDistance / this.canvas.clientHeight);
+            panLeft.multiplyScalar(-2 * deltaX * targetDistance / this.domElement.clientHeight);
 
             // Pan up/down
             const panUp = new THREE.Vector3();
             panUp.setFromMatrixColumn(this.camera.matrix, 1);
-            panUp.multiplyScalar(2 * deltaY * targetDistance / this.canvas.clientHeight);
+            panUp.multiplyScalar(2 * deltaY * targetDistance / this.domElement.clientHeight);
 
-            this.panOffset.add(panLeft).add(panUp);
+            // Apply pan
+            this.target.add(panLeft);
+            this.target.add(panUp);
         }
 
-        /**
-         * Zoom in
-         * @param {number} dollyScale - Dolly scale factor
-         */
         dollyIn(dollyScale) {
-            this.scale /= dollyScale;
+            this.spherical.radius /= dollyScale;
         }
 
-        /**
-         * Zoom out
-         * @param {number} dollyScale - Dolly scale factor
-         */
         dollyOut(dollyScale) {
-            this.scale *= dollyScale;
+            this.spherical.radius *= dollyScale;
         }
 
-        /**
-         * Get zoom scale factor
-         * @returns {number} Zoom scale
-         */
         getZoomScale() {
-            return Math.pow(0.95, this.options.zoomSpeed);
+            return Math.pow(0.95, this.zoomSpeed);
         }
 
         /**
-         * Update camera position and orientation
+         * Update camera position
          */
         update() {
             const offset = new THREE.Vector3();
@@ -388,207 +461,157 @@ window.CameraControls = (function() {
             this.spherical.theta += this.sphericalDelta.theta;
             this.spherical.phi += this.sphericalDelta.phi;
 
-            // Restrict phi to be between desired limits
-            this.spherical.phi = Math.max(this.options.minPolarAngle,
-                                        Math.min(this.options.maxPolarAngle, this.spherical.phi));
+            // Restrict phi to valid range
+            this.spherical.phi = Math.max(this.options.minPolarAngle, Math.min(this.options.maxPolarAngle, this.spherical.phi));
 
-            this.spherical.makeSafe();
-
-            // Apply scale
-            this.spherical.radius *= this.scale;
-
-            // Restrict radius to be between desired limits
-            this.spherical.radius = Math.max(this.options.minDistance,
-                                           Math.min(this.options.maxDistance, this.spherical.radius));
+            // Restrict radius to valid range
+            this.spherical.radius = Math.max(this.options.minDistance, Math.min(this.options.maxDistance, this.spherical.radius));
 
             // Move target to panned location
-            this.target.add(this.panOffset);
-
-            // Convert spherical to cartesian
             offset.setFromSpherical(this.spherical);
+            offset.add(this.target);
 
-            // Rotate offset back to "camera-up-vector-is-up" space
-            offset.applyQuaternion(this.getUpQuaternion());
-
-            // Update camera position
-            this.camera.position.copy(this.target).add(offset);
-
-            // Look at target
+            this.camera.position.copy(offset);
             this.camera.lookAt(this.target);
 
             // Apply damping
-            if (this.options.dampingFactor > 0 && !this.isUserInteracting) {
+            if (this.options.enableDamping) {
                 this.sphericalDelta.theta *= (1 - this.options.dampingFactor);
                 this.sphericalDelta.phi *= (1 - this.options.dampingFactor);
-                this.panOffset.multiplyScalar(1 - this.options.dampingFactor);
             } else {
                 this.sphericalDelta.set(0, 0, 0);
-                this.panOffset.set(0, 0, 0);
             }
 
-            this.scale = 1;
-
-            // Auto rotate
-            if (this.options.autoRotate && !this.isUserInteracting) {
-                this.rotateLeft(this.getAutoRotationAngle());
-            }
-
-            // Update camera if it moved
-            if (this.zoomChanged ||
-                this.lastPosition === undefined || !this.camera.position.equals(this.lastPosition) ||
-                this.lastQuaternion === undefined || !this.camera.quaternion.equals(this.lastQuaternion)) {
-
-                this.lastPosition = this.camera.position.clone();
-                this.lastQuaternion = this.camera.quaternion.clone();
-                this.zoomChanged = false;
-
-                return true;
-            }
-
-            return false;
+            return true;
         }
 
         /**
-         * Get up quaternion for camera orientation
-         * @returns {THREE.Quaternion} Up quaternion
+         * Set camera position
+         * @param {number} x - X position
+         * @param {number} y - Y position
+         * @param {number} z - Z position
          */
-        getUpQuaternion() {
-            const quaternion = new THREE.Quaternion();
-            quaternion.setFromUnitVectors(this.camera.up, new THREE.Vector3(0, 1, 0));
-            return quaternion;
-        }
-
-        /**
-         * Get auto rotation angle
-         * @returns {number} Auto rotation angle
-         */
-        getAutoRotationAngle() {
-            return 2 * Math.PI / 60 / 60 * this.options.autoRotateSpeed;
-        }
-
-        /**
-         * Reset camera to default position
-         */
-        reset() {
-            this.target.set(0, 0, 0);
-            this.camera.position.set(0, 50, 100);
-            this.camera.lookAt(this.target);
+        setPosition(x, y, z) {
+            this.camera.position.set(x, y, z);
             this.updateSphericalFromCamera();
             this.update();
-
-            if (window.Helpers) {
-                window.Helpers.log('Camera controls reset to default position', 'debug');
-            }
         }
 
         /**
          * Set camera target
-         * @param {THREE.Vector3} target - New target position
+         * @param {number} x - Target X
+         * @param {number} y - Target Y
+         * @param {number} z - Target Z
          */
-        setTarget(target) {
-            this.target.copy(target);
-            this.update();
+        lookAt(x, y, z) {
+            this.target.set(x, y, z);
+            this.camera.lookAt(this.target);
+            this.updateSphericalFromCamera();
         }
 
         /**
-         * Focus camera on object
-         * @param {THREE.Object3D} object - Object to focus on
-         * @param {number} distance - Distance from object
+         * Focus camera on a specific target with smooth animation
+         * @param {THREE.Vector3} targetPosition - Target position
+         * @param {number} distance - Viewing distance
+         * @param {number} duration - Animation duration in milliseconds
          */
-        focusOnObject(object, distance = null) {
-            if (!object) return;
-
-            // Get object position
-            const objectPosition = new THREE.Vector3();
-            object.getWorldPosition(objectPosition);
-
-            // Set as new target
-            this.setTarget(objectPosition);
-
-            // Calculate appropriate distance if not provided
-            if (distance === null) {
-                const boundingBox = new THREE.Box3().setFromObject(object);
-                const size = boundingBox.getSize(new THREE.Vector3()).length();
-                distance = size * 3; // 3x object size
+        focusOn(targetPosition, distance = 50, duration = 2000) {
+            if (this.isAnimating) {
+                cancelAnimationFrame(this.animationId);
             }
 
-            // Set camera distance
-            this.spherical.radius = Math.max(this.options.minDistance,
-                                           Math.min(this.options.maxDistance, distance));
-            this.update();
+            const startTarget = this.target.clone();
+            const startPosition = this.camera.position.clone();
 
-            if (window.Helpers) {
-                window.Helpers.log(`Camera focused on object at distance: ${distance.toFixed(2)}`, 'debug');
-            }
+            const endTarget = targetPosition.clone();
+            const direction = startPosition.clone().sub(startTarget).normalize();
+            const endPosition = endTarget.clone().add(direction.multiplyScalar(distance));
+
+            const startTime = performance.now();
+            this.isAnimating = true;
+
+            const animate = (currentTime) => {
+                const elapsed = currentTime - startTime;
+                const progress = Math.min(elapsed / duration, 1);
+
+                // Smooth easing function
+                const easedProgress = this.easeInOutCubic(progress);
+
+                // Interpolate target and position
+                this.target.lerpVectors(startTarget, endTarget, easedProgress);
+                this.camera.position.lerpVectors(startPosition, endPosition, easedProgress);
+                this.camera.lookAt(this.target);
+
+                this.updateSphericalFromCamera();
+
+                if (progress < 1) {
+                    this.animationId = requestAnimationFrame(animate);
+                } else {
+                    this.isAnimating = false;
+                }
+            };
+
+            this.animationId = requestAnimationFrame(animate);
         }
 
         /**
-         * Get camera distance from target
-         * @returns {number} Distance
+         * Easing function for smooth animations
+         */
+        easeInOutCubic(t) {
+            return t < 0.5 ? 4 * t * t * t : (t - 1) * (2 * t - 2) * (2 * t - 2) + 1;
+        }
+
+        /**
+         * Get current camera distance from target
          */
         getDistance() {
-            return this.spherical.radius;
-        }
-
-        /**
-         * Set camera distance
-         * @param {number} distance - New distance
-         */
-        setDistance(distance) {
-            this.spherical.radius = Math.max(this.options.minDistance,
-                                           Math.min(this.options.maxDistance, distance));
-            this.update();
+            return this.camera.position.distanceTo(this.target);
         }
 
         /**
          * Enable or disable controls
-         * @param {boolean} enabled - Controls enabled
          */
         setEnabled(enabled) {
-            this.enabled = enabled;
-            this.canvas.style.cursor = enabled ? 'grab' : 'default';
+            this.options.enableRotate = enabled;
+            this.options.enableZoom = enabled;
+            this.options.enablePan = enabled;
         }
 
         /**
-         * Set auto rotate
-         * @param {boolean} enabled - Auto rotate enabled
-         */
-        setAutoRotate(enabled) {
-            this.options.autoRotate = enabled;
-        }
-
-        /**
-         * Get control state
-         * @returns {Object} Control state
-         */
-        getState() {
-            return {
-                enabled: this.enabled,
-                isUserInteracting: this.isUserInteracting,
-                target: this.target.clone(),
-                distance: this.getDistance(),
-                autoRotate: this.options.autoRotate
-            };
-        }
-
-        /**
-         * Dispose of camera controls
+         * Dispose of controls and cleanup
          */
         dispose() {
-            // Remove event listeners with proper options
-            this.canvas.removeEventListener('mousedown', this.onMouseDown);
-            this.canvas.removeEventListener('mousemove', this.onMouseMove);
-            this.canvas.removeEventListener('mouseup', this.onMouseUp);
-            this.canvas.removeEventListener('wheel', this.onMouseWheel);
-            this.canvas.removeEventListener('touchstart', this.onTouchStart);
-            this.canvas.removeEventListener('touchmove', this.onTouchMove);
-            this.canvas.removeEventListener('touchend', this.onTouchEnd);
-            this.canvas.removeEventListener('contextmenu', this.onContextMenu);
+            // Cancel any ongoing animation
+            if (this.animationId) {
+                cancelAnimationFrame(this.animationId);
+            }
+
+            // Remove current mouse handlers if active
+            if (this.currentMouseMoveHandler) {
+                document.removeEventListener('mousemove', this.currentMouseMoveHandler);
+            }
+            if (this.currentMouseUpHandler) {
+                document.removeEventListener('mouseup', this.currentMouseUpHandler);
+            }
+
+            // Remove all event listeners
+            this.eventListeners.forEach(({ target, type, listener }) => {
+                target.removeEventListener(type, listener);
+            });
+            this.eventListeners = [];
+
+            this.isInitialized = false;
 
             if (window.Helpers) {
                 window.Helpers.log('Camera controls disposed', 'debug');
             }
         }
+
+        // Getters
+        get Camera() { return this.camera; }
+        get Target() { return this.target; }
+        get IsInitialized() { return this.isInitialized; }
+        get IsAnimating() { return this.isAnimating; }
     }
 
     // Public API
@@ -596,10 +619,15 @@ window.CameraControls = (function() {
         CameraControls,
 
         // Factory function
-        create: (camera, canvas, options = {}) => {
-            return new CameraControls(camera, canvas, options);
+        create: (options = {}) => {
+            return new CameraControls(options);
         }
     };
 })();
+
+// Make available globally
+if (typeof module !== 'undefined' && module.exports) {
+    module.exports = window.CameraControls;
+}
 
 console.log('CameraControls module loaded successfully');
