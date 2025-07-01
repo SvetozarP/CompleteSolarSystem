@@ -429,3 +429,116 @@ p {
         image-rendering: crisp-edges;
     }
 }
+
+/* Add this CSS to your base.css or as a separate stylesheet */
+/* Modal Z-Index Fix - Ensures modals appear above all other content */
+
+/* Override z-index hierarchy to fix modal visibility */
+:root {
+    /* Updated Z-index layers with higher values for modals */
+    --z-background: -1;
+    --z-content: 1;
+    --z-overlay: 10;
+    --z-control-panel: 20;
+    --z-info-panel: 25;
+    --z-tooltip: 30;
+    --z-toast: 50;
+    --z-modal: 99999;
+    --z-loading: 100000;
+}
+
+/* Force modal containers to highest z-index */
+.modal,
+#help-modal,
+#system-info-modal {
+    z-index: var(--z-modal) !important;
+    position: fixed !important;
+    top: 50%!important;
+    left: 50% !important;
+    width: 100vw !important;
+    height: 100vh !important;
+    pointer-events: auto !important;
+}
+
+
+
+.modal.hidden,
+#help-modal.hidden,
+#system-info-modal.hidden {
+    pointer-events: none !important;
+    z-index: -1 !important;
+}
+
+.modal-content {
+    z-index: calc(var(--z-modal) + 1) !important;
+    position: relative !important;
+    transform: translateZ(0) !important;
+}
+
+.modal-overlay {
+    z-index: var(--z-modal) !important;
+    pointer-events: auto !important;
+}
+
+/* Ensure other elements stay below modals */
+.control-panel {
+    z-index: var(--z-control-panel) !important;
+}
+
+.info-panel {
+    z-index: var(--z-info-panel) !important;
+}
+
+.planet-tooltip {
+    z-index: var(--z-tooltip) !important;
+}
+
+.toast-container {
+    z-index: var(--z-toast) !important;
+}
+
+.canvas-controls {
+    z-index: var(--z-overlay) !important;
+}
+
+.canvas-overlay {
+    z-index: var(--z-overlay) !important;
+}
+
+/* Loading screen should be highest when visible */
+.loading-screen {
+    z-index: var(--z-loading) !important;
+}
+
+/* Fallback styles for modal visibility */
+body.modal-open {
+    overflow: hidden;
+}
+
+/* Additional modal styling for better visibility */
+.modal-content {
+    backdrop-filter: blur(20px) !important;
+    border: 2px solid rgba(74, 158, 255, 0.3) !important;
+    box-shadow:
+        0 20px 60px rgba(0, 0, 0, 0.8),
+        0 0 100px rgba(74, 158, 255, 0.2) !important;
+}
+
+.modal-header {
+    background: rgba(0, 0, 0, 0.4) !important;
+    border-bottom: 1px solid rgba(74, 158, 255, 0.3) !important;
+}
+
+/* Debug styles - remove these after testing */
+.modal.debug-modal {
+    background: rgba(255, 0, 0, 0.5) !important;
+    border: 5px solid red !important;
+}
+
+/* Force GPU acceleration for better performance */
+.modal,
+.modal-content,
+.modal-overlay {
+    will-change: transform, opacity;
+    transform: translateZ(0);
+}
