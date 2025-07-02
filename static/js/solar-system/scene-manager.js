@@ -692,6 +692,76 @@ window.SceneManager = (function() {
         }
 
         /**
+         * Take a screenshot of the current scene
+         * @param {string} filename - Filename for download
+         * @param {number} width - Screenshot width
+         * @param {number} height - Screenshot height
+         */
+        takeScreenshot(filename = 'solar-system-screenshot.png', width = null, height = null) {
+            if (!this.renderer || !this.scene || !this.camera) {
+                console.warn('Cannot take screenshot: renderer, scene, or camera not available');
+                return;
+            }
+
+            try {
+                // Use current canvas size if no dimensions specified
+                const currentWidth = this.renderer.domElement.width;
+                const currentHeight = this.renderer.domElement.height;
+
+                const screenshotWidth = width || currentWidth;
+                const screenshotHeight = height || currentHeight;
+
+                // Store original size
+                const originalWidth = currentWidth;
+                const originalHeight = currentHeight;
+                const originalAspect = this.camera.aspect;
+
+                // Temporarily resize if needed
+                if (width && height && (width !== currentWidth || height !== currentHeight)) {
+                    this.renderer.setSize(screenshotWidth, screenshotHeight, false);
+                    this.camera.aspect = screenshotWidth / screenshotHeight;
+                    this.camera.updateProjectionMatrix();
+                }
+
+                // Render frame for screenshot
+                this.renderer.render(this.scene, this.camera);
+
+                // Get data URL from canvas
+                const dataURL = this.renderer.domElement.toDataURL('image/png', 1.0);
+
+                // Restore original size if changed
+                if (width && height && (width !== originalWidth || height !== originalHeight)) {
+                    this.renderer.setSize(originalWidth, originalHeight, false);
+                    this.camera.aspect = originalAspect;
+                    this.camera.updateProjectionMatrix();
+                }
+
+                // Create download link
+                const link = document.createElement('a');
+                link.download = filename;
+                link.href = dataURL;
+
+                // Trigger download
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+
+                if (window.Helpers) {
+                    window.Helpers.log(`Screenshot saved: ${filename}`, 'debug');
+                }
+
+                return true;
+
+            } catch (error) {
+                console.error('Screenshot failed:', error);
+                if (window.Helpers) {
+                    window.Helpers.handleError(error, 'SceneManager.takeScreenshot');
+                }
+                return false;
+            }
+        }
+
+        /**
          * Dispose of all resources and cleanup
          */
         dispose() {

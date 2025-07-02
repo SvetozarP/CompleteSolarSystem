@@ -292,7 +292,7 @@
 {% endblock %}
 
 {% block app_init %}
-console.log('Starting Solar System App with fixed timing...');
+console.log('Starting Solar System App with FIXED canvas controls...');
 
 // FIXED: Initialize the app without waiting for hidden containers
 async function initializeSolarSystemApp() {
@@ -421,8 +421,12 @@ function setupPostInitializationFeatures() {
     // Start rotating facts
     startFactRotation();
 
-    // Setup event handlers
+    // FIXED: Setup ALL event handlers including canvas controls
     setupStage4EventHandlers();
+    setupZoomControls();
+    setupViewControls();
+    setupUtilityControls();
+    setupKeyboardControls();
 
     console.log('Post-initialization features setup complete');
 }
@@ -470,7 +474,298 @@ function handleInitializationError(error) {
 // Start the initialization process immediately
 initializeSolarSystemApp();
 
-// Define helper functions
+// FIXED: Zoom controls that actually work
+function setupZoomControls() {
+    console.log('Setting up FIXED zoom controls...');
+
+    const zoomInBtn = document.getElementById('zoom-in');
+    const zoomOutBtn = document.getElementById('zoom-out');
+    const zoomResetBtn = document.getElementById('zoom-reset');
+
+    if (zoomInBtn) {
+        zoomInBtn.addEventListener('click', () => {
+            console.log('Zoom in clicked');
+
+            if (window.solarSystemApp && window.solarSystemApp.cameraControls) {
+                const controls = window.solarSystemApp.cameraControls;
+                const camera = controls.camera;
+
+                if (controls.IsFollowing) {
+                    // If following a planet, adjust follow distance
+                    controls.followDistance = Math.max(controls.followDistance * 0.8, 5);
+
+                    // Update camera position to maintain distance
+                    if (controls.followedPlanet) {
+                        const planetPosition = new THREE.Vector3();
+                        controls.followedPlanet.getWorldPosition(planetPosition);
+
+                        controls.followOffset.normalize().multiplyScalar(controls.followDistance);
+                        camera.position.copy(planetPosition).add(controls.followOffset);
+                        camera.lookAt(planetPosition);
+                    }
+                } else {
+                    // Normal zoom behavior
+                    const direction = new THREE.Vector3();
+                    camera.getWorldDirection(direction);
+
+                    const zoomDistance = camera.position.distanceTo(controls.target) * 0.2;
+                    camera.position.add(direction.multiplyScalar(zoomDistance));
+
+                    // Ensure minimum distance
+                    const distanceToTarget = camera.position.distanceTo(controls.target);
+                    if (distanceToTarget < 1) {
+                        const targetDirection = camera.position.clone().sub(controls.target).normalize();
+                        camera.position.copy(controls.target).add(targetDirection.multiplyScalar(1));
+                    }
+                }
+
+                controls.updateSphericalFromCamera();
+
+                if (window.NotificationSystem) {
+                    window.NotificationSystem.showInfo('🔍 Zoomed In', 1000);
+                }
+            }
+        });
+    }
+
+    if (zoomOutBtn) {
+        zoomOutBtn.addEventListener('click', () => {
+            console.log('Zoom out clicked');
+
+            if (window.solarSystemApp && window.solarSystemApp.cameraControls) {
+                const controls = window.solarSystemApp.cameraControls;
+                const camera = controls.camera;
+
+                if (controls.IsFollowing) {
+                    // If following a planet, adjust follow distance
+                    controls.followDistance = Math.min(controls.followDistance * 1.25, 200);
+
+                    // Update camera position to maintain distance
+                    if (controls.followedPlanet) {
+                        const planetPosition = new THREE.Vector3();
+                        controls.followedPlanet.getWorldPosition(planetPosition);
+
+                        controls.followOffset.normalize().multiplyScalar(controls.followDistance);
+                        camera.position.copy(planetPosition).add(controls.followOffset);
+                        camera.lookAt(planetPosition);
+                    }
+                } else {
+                    // Normal zoom behavior
+                    const direction = new THREE.Vector3();
+                    camera.getWorldDirection(direction);
+
+                    const zoomDistance = camera.position.distanceTo(controls.target) * 0.2;
+                    camera.position.add(direction.multiplyScalar(-zoomDistance));
+
+                    // Ensure maximum distance
+                    const distanceToTarget = camera.position.distanceTo(controls.target);
+                    if (distanceToTarget > 500) {
+                        const targetDirection = camera.position.clone().sub(controls.target).normalize();
+                        camera.position.copy(controls.target).add(targetDirection.multiplyScalar(500));
+                    }
+                }
+
+                controls.updateSphericalFromCamera();
+
+                if (window.NotificationSystem) {
+                    window.NotificationSystem.showInfo('🔍 Zoomed Out', 1000);
+                }
+            }
+        });
+    }
+
+    if (zoomResetBtn) {
+        zoomResetBtn.addEventListener('click', () => {
+            console.log('Zoom reset clicked');
+
+            if (window.solarSystemApp && window.solarSystemApp.resetCameraView) {
+                window.solarSystemApp.resetCameraView();
+
+                if (window.NotificationSystem) {
+                    window.NotificationSystem.showInfo('📷 Camera Reset', 1500);
+                }
+            }
+        });
+    }
+
+    console.log('Zoom controls setup complete');
+}
+
+// FIXED: View controls that actually work
+function setupViewControls() {
+    console.log('Setting up FIXED view controls...');
+
+    const viewTopBtn = document.getElementById('view-top');
+    const viewSideBtn = document.getElementById('view-side');
+    const viewAngledBtn = document.getElementById('view-angled');
+
+    if (viewTopBtn) {
+        viewTopBtn.addEventListener('click', () => {
+            console.log('Top view clicked');
+
+            if (window.solarSystemApp && window.solarSystemApp.cameraControls) {
+                const controls = window.solarSystemApp.cameraControls;
+
+                // Stop following if active
+                controls.stopFollowing();
+
+                // Set top view position
+                controls.setPosition(0, 150, 0);
+                controls.lookAt(0, 0, 0);
+
+                updateViewButtons(viewTopBtn);
+
+                if (window.NotificationSystem) {
+                    window.NotificationSystem.showInfo('⬆ Top View', 1500);
+                }
+            }
+        });
+    }
+
+    if (viewSideBtn) {
+        viewSideBtn.addEventListener('click', () => {
+            console.log('Side view clicked');
+
+            if (window.solarSystemApp && window.solarSystemApp.cameraControls) {
+                const controls = window.solarSystemApp.cameraControls;
+
+                // Stop following if active
+                controls.stopFollowing();
+
+                // Set side view position
+                controls.setPosition(150, 0, 0);
+                controls.lookAt(0, 0, 0);
+
+                updateViewButtons(viewSideBtn);
+
+                if (window.NotificationSystem) {
+                    window.NotificationSystem.showInfo('➡ Side View', 1500);
+                }
+            }
+        });
+    }
+
+    if (viewAngledBtn) {
+        viewAngledBtn.addEventListener('click', () => {
+            console.log('Angled view clicked');
+
+            if (window.solarSystemApp && window.solarSystemApp.cameraControls) {
+                const controls = window.solarSystemApp.cameraControls;
+
+                // Stop following if active
+                controls.stopFollowing();
+
+                // Set angled view position
+                controls.setPosition(0, 30, 80);
+                controls.lookAt(0, 0, 0);
+
+                updateViewButtons(viewAngledBtn);
+
+                if (window.NotificationSystem) {
+                    window.NotificationSystem.showInfo('⬈ Angled View', 1500);
+                }
+            }
+        });
+    }
+
+    console.log('View controls setup complete');
+}
+
+// FIXED: Utility controls that actually work
+function setupUtilityControls() {
+    console.log('Setting up FIXED utility controls...');
+
+    // Screenshot button
+    const screenshotBtn = document.getElementById('screenshot-btn');
+    if (screenshotBtn) {
+        screenshotBtn.addEventListener('click', () => {
+            console.log('Screenshot button clicked');
+
+            if (window.solarSystemApp && window.solarSystemApp.sceneManager) {
+                try {
+                    const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+                    const filename = `solar-system-${timestamp}.png`;
+
+                    window.solarSystemApp.sceneManager.takeScreenshot(filename);
+
+                    if (window.NotificationSystem) {
+                        window.NotificationSystem.showSuccess('📷 Screenshot saved!');
+                    }
+                } catch (error) {
+                    console.error('Screenshot failed:', error);
+                    if (window.NotificationSystem) {
+                        window.NotificationSystem.showError('Screenshot failed');
+                    }
+                }
+            }
+        });
+    }
+
+    // Toggle labels button
+    const toggleLabelsBtn = document.getElementById('toggle-labels');
+    if (toggleLabelsBtn) {
+        toggleLabelsBtn.addEventListener('click', () => {
+            console.log('Toggle labels clicked');
+
+            if (window.solarSystemApp && window.solarSystemApp.planetLabels) {
+                const newState = window.solarSystemApp.planetLabels.toggle();
+
+                // Update control panel checkbox
+                if (window.ControlPanel && window.ControlPanel.setFeature) {
+                    window.ControlPanel.setFeature('labels', newState);
+                }
+
+                updateToggleButtonState(toggleLabelsBtn, newState);
+
+                if (window.NotificationSystem) {
+                    window.NotificationSystem.showInfo(
+                        `🏷️ Planet Labels ${newState ? 'Enabled' : 'Disabled'}`, 1500
+                    );
+                }
+            }
+        });
+    }
+
+    // Focus on Sun button
+    const focusSunBtn = document.getElementById('focus-sun');
+    if (focusSunBtn) {
+        focusSunBtn.addEventListener('click', () => {
+            console.log('Focus Sun clicked');
+
+            if (window.solarSystemApp && window.solarSystemApp.focusOnPlanet) {
+                window.solarSystemApp.focusOnPlanet('Sun', false); // Don't follow the Sun
+
+                if (window.NotificationSystem) {
+                    window.NotificationSystem.showInfo('☀️ Focused on Sun', 1500);
+                }
+            }
+        });
+    }
+
+    console.log('Utility controls setup complete');
+}
+
+// Helper function to update view button states
+function updateViewButtons(activeButton) {
+    const viewButtons = document.querySelectorAll('.view-btn');
+    viewButtons.forEach(btn => btn.classList.remove('active'));
+    if (activeButton) {
+        activeButton.classList.add('active');
+    }
+}
+
+// Helper function to update toggle button states
+function updateToggleButtonState(button, enabled) {
+    if (enabled) {
+        button.style.background = 'rgba(74, 158, 255, 0.2)';
+        button.style.borderColor = '#4a9eff';
+        button.style.color = '#4a9eff';
+    } else {
+        button.style.background = '';
+        button.style.borderColor = '';
+        button.style.color = '';
+    }
+}
 
 function startFactRotation() {
     const facts = document.querySelectorAll('.fact');
@@ -494,148 +789,10 @@ function startFactRotation() {
 function setupStage4EventHandlers() {
     console.log('Setting up Stage 4 event handlers...');
 
-    // Screenshot button
-    const screenshotBtn = document.getElementById('screenshot-btn');
-    if (screenshotBtn) {
-        screenshotBtn.addEventListener('click', () => {
-            if (window.solarSystemApp && window.solarSystemApp.takeScreenshot) {
-                window.solarSystemApp.takeScreenshot();
-            }
-        });
-    }
-
-    // Toggle labels button
-    const toggleLabelsBtn = document.getElementById('toggle-labels');
-    if (toggleLabelsBtn) {
-        toggleLabelsBtn.addEventListener('click', () => {
-            if (window.solarSystemApp && window.solarSystemApp.planetLabels) {
-                const newState = window.solarSystemApp.planetLabels.toggle();
-
-                if (window.ControlPanel && window.ControlPanel.setFeature) {
-                    window.ControlPanel.setFeature('labels', newState);
-                }
-
-                updateToggleButtonState(toggleLabelsBtn, newState);
-
-                if (window.NotificationSystem) {
-                    window.NotificationSystem.showInfo(
-                        `🏷️ Planet Labels ${newState ? 'Enabled' : 'Disabled'}`, 1500
-                    );
-                }
-            }
-        });
-    }
-
-    // Focus on Sun button
-    const focusSunBtn = document.getElementById('focus-sun');
-    if (focusSunBtn) {
-        focusSunBtn.addEventListener('click', () => {
-            if (window.solarSystemApp && window.solarSystemApp.focusOnPlanet) {
-                window.solarSystemApp.focusOnPlanet('Sun');
-            }
-        });
-    }
-
-    // Setup zoom and view controls
-    setupZoomControls();
-    setupViewControls();
+    // Setup planet interaction handlers
     setupPlanetInteractionHandlers();
 
     console.log('Stage 4 event handlers setup complete');
-}
-
-function setupZoomControls() {
-    const zoomInBtn = document.getElementById('zoom-in');
-    const zoomOutBtn = document.getElementById('zoom-out');
-    const zoomResetBtn = document.getElementById('zoom-reset');
-
-    if (zoomInBtn) {
-        zoomInBtn.addEventListener('click', () => {
-            if (window.solarSystemApp && window.solarSystemApp.cameraControls) {
-                const controls = window.solarSystemApp.cameraControls;
-                controls.dollyIn(1.25);
-                controls.update();
-
-                if (window.NotificationSystem) {
-                    window.NotificationSystem.showInfo('🔍 Zoomed In', 1500);
-                }
-            }
-        });
-    }
-
-    if (zoomOutBtn) {
-        zoomOutBtn.addEventListener('click', () => {
-            if (window.solarSystemApp && window.solarSystemApp.cameraControls) {
-                const controls = window.solarSystemApp.cameraControls;
-                controls.dollyOut(1.25);
-                controls.update();
-
-                if (window.NotificationSystem) {
-                    window.NotificationSystem.showInfo('🔍 Zoomed Out', 1500);
-                }
-            }
-        });
-    }
-
-    if (zoomResetBtn) {
-        zoomResetBtn.addEventListener('click', () => {
-            if (window.solarSystemApp && window.solarSystemApp.resetCameraView) {
-                window.solarSystemApp.resetCameraView();
-
-                if (window.NotificationSystem) {
-                    window.NotificationSystem.showInfo('📷 Camera Reset', 1500);
-                }
-            }
-        });
-    }
-}
-
-function setupViewControls() {
-    const viewTopBtn = document.getElementById('view-top');
-    const viewSideBtn = document.getElementById('view-side');
-    const viewAngledBtn = document.getElementById('view-angled');
-
-    if (viewTopBtn) {
-        viewTopBtn.addEventListener('click', () => {
-            if (window.solarSystemApp && window.solarSystemApp.cameraControls) {
-                window.solarSystemApp.cameraControls.setPosition(0, 150, 0);
-                window.solarSystemApp.cameraControls.lookAt(0, 0, 0);
-                updateViewButtons(viewTopBtn);
-
-                if (window.NotificationSystem) {
-                    window.NotificationSystem.showInfo('⬆ Top View', 1500);
-                }
-            }
-        });
-    }
-
-    if (viewSideBtn) {
-        viewSideBtn.addEventListener('click', () => {
-            if (window.solarSystemApp && window.solarSystemApp.cameraControls) {
-                window.solarSystemApp.cameraControls.setPosition(150, 0, 0);
-                window.solarSystemApp.cameraControls.lookAt(0, 0, 0);
-                updateViewButtons(viewSideBtn);
-
-                if (window.NotificationSystem) {
-                    window.NotificationSystem.showInfo('➡ Side View', 1500);
-                }
-            }
-        });
-    }
-
-    if (viewAngledBtn) {
-        viewAngledBtn.addEventListener('click', () => {
-            if (window.solarSystemApp && window.solarSystemApp.cameraControls) {
-                window.solarSystemApp.cameraControls.setPosition(0, 30, 80);
-                window.solarSystemApp.cameraControls.lookAt(0, 0, 0);
-                updateViewButtons(viewAngledBtn);
-
-                if (window.NotificationSystem) {
-                    window.NotificationSystem.showInfo('⬈ Angled View', 1500);
-                }
-            }
-        });
-    }
 }
 
 function setupPlanetInteractionHandlers() {
@@ -700,15 +857,19 @@ function setupPlanetInteractionHandlers() {
     });
 }
 
-// Separate keyboard setup function
+// FIXED: Keyboard controls
 function setupKeyboardControls() {
+    console.log('Setting up FIXED keyboard controls...');
+
     document.addEventListener('keydown', function(event) {
-        if (window.solarSystemApp && window.solarSystemApp.handleKeyPress) {
-            window.solarSystemApp.handleKeyPress(event);
+        // Let the control panel handle its keyboard shortcuts first
+        if (window.ControlPanel && window.ControlPanel.handleKeyPress) {
+            window.ControlPanel.handleKeyPress(event);
         }
 
         switch (event.code) {
             case 'KeyI':
+                event.preventDefault();
                 if (window.solarSystemApp && window.solarSystemApp.interactionManager) {
                     const selectedPlanet = window.solarSystemApp.interactionManager.SelectedPlanet;
                     if (selectedPlanet) {
@@ -745,6 +906,38 @@ function setupKeyboardControls() {
                 }
                 break;
 
+            case 'Equal':
+            case 'NumpadAdd':
+                if (event.ctrlKey || event.metaKey) {
+                    event.preventDefault();
+                    const zoomInBtn = document.getElementById('zoom-in');
+                    if (zoomInBtn) {
+                        zoomInBtn.click();
+                    }
+                }
+                break;
+
+            case 'Minus':
+            case 'NumpadSubtract':
+                if (event.ctrlKey || event.metaKey) {
+                    event.preventDefault();
+                    const zoomOutBtn = document.getElementById('zoom-out');
+                    if (zoomOutBtn) {
+                        zoomOutBtn.click();
+                    }
+                }
+                break;
+
+            case 'Digit0':
+                if (event.ctrlKey || event.metaKey) {
+                    event.preventDefault();
+                    const zoomResetBtn = document.getElementById('zoom-reset');
+                    if (zoomResetBtn) {
+                        zoomResetBtn.click();
+                    }
+                }
+                break;
+
             case 'Escape':
                 event.preventDefault();
                 if (window.solarSystemApp && window.solarSystemApp.stopFollowingPlanet) {
@@ -767,94 +960,9 @@ function setupKeyboardControls() {
                 break;
         }
     });
+
+    console.log('Keyboard controls setup complete');
 }
 
-// Update the setupPostInitializationFeatures function to include new features
-function setupPostInitializationFeatures() {
-    console.log('Setting up post-initialization features...');
-
-    // Show info cards after a delay
-    setTimeout(function() {
-        const infoCards = document.getElementById('info-cards');
-        if (infoCards) {
-            infoCards.classList.remove('hidden');
-            console.log('Info cards displayed');
-        }
-
-        // Update interaction status
-        const interactionStatus = document.getElementById('interaction-status');
-        if (interactionStatus) {
-            interactionStatus.textContent = 'Active';
-            interactionStatus.style.color = '#10b981';
-        }
-    }, 1000);
-
-    // Start rotating facts
-    startFactRotation();
-
-    // Setup event handlers
-    setupPlanetInteractionHandlers();
-    setupKeyboardControls();
-
-    // Add following features
-    setTimeout(function() {
-        addFollowToggleButton();
-        updateHelpModal();
-    }, 1500);
-
-    console.log('Post-initialization features setup complete');
-}
-
-function addFollowToggleButton() {
-    const utilityControls = document.querySelector('.utility-controls');
-    if (utilityControls) {
-        const followBtn = document.createElement('button');
-        followBtn.id = 'toggle-follow';
-        followBtn.className = 'utility-btn';
-        followBtn.title = 'Toggle Planet Following (F)';
-        followBtn.innerHTML = '📹';
-
-        followBtn.addEventListener('click', function() {
-            if (window.solarSystemApp && window.solarSystemApp.togglePlanetFollowing) {
-                window.solarSystemApp.togglePlanetFollowing();
-            }
-        });
-
-        utilityControls.appendChild(followBtn);
-        console.log('Follow toggle button added');
-    }
-}
-
-function updateHelpModal() {
-    // This will be called by HeaderControls when the help modal is created
-    setTimeout(function() {
-        const helpModal = document.getElementById('help-modal');
-        if (helpModal) {
-            const keyboardSections = helpModal.querySelectorAll('.info-grid');
-            if (keyboardSections.length > 1) {
-                const keyboardGrid = keyboardSections[1]; // Second grid is keyboard shortcuts
-
-                // Add new keyboard shortcuts
-                const newShortcuts = [
-                    { label: 'F:', value: 'Toggle planet following mode' },
-                    { label: 'Escape:', value: 'Stop following / Close panels' },
-                    { label: 'Double-click Planet:', value: 'Follow planet with camera' }
-                ];
-
-                newShortcuts.forEach(function(shortcut) {
-                    const shortcutDiv = document.createElement('div');
-                    shortcutDiv.className = 'info-item';
-                    shortcutDiv.innerHTML =
-                        '<span class="info-label">' + shortcut.label + '</span>' +
-                        '<span class="info-value">' + shortcut.value + '</span>';
-                    keyboardGrid.appendChild(shortcutDiv);
-                });
-
-                console.log('Help modal updated with following shortcuts');
-            }
-        }
-    }, 2000);
-}
-
-console.log('Fixed initialization script loaded - no freeze version');
+console.log('FIXED canvas controls script loaded');
 {% endblock %}
