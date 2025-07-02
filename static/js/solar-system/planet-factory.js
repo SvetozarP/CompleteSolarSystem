@@ -1,11 +1,11 @@
 // static/js/solar-system/planet-factory.js
-// Enhanced planet factory with realistic materials and visual effects - COMPLETELY FIXED
+// ENHANCED Planet Factory with Texture Loading, Moon Systems, and Ring Systems
 
 window.PlanetFactory = (function() {
     'use strict';
 
     /**
-     * Planet factory for creating realistic 3D planets
+     * Enhanced planet factory with full texture support, moons, and rings
      */
     class PlanetFactory {
         constructor(options = {}) {
@@ -17,6 +17,7 @@ window.PlanetFactory = (function() {
                 enableNormalMaps: true,
                 enableAtmosphere: true,
                 enableRings: true,
+                enableMoons: true,
                 quality: 'medium',
                 ...options
             };
@@ -24,37 +25,84 @@ window.PlanetFactory = (function() {
             // Caches
             this.materialCache = new Map();
             this.geometryCache = new Map();
+            this.textureCache = new Map();
             this.planetInstances = new Map();
-            this.atmospheres = new Map();
+            this.moonSystems = new Map();
             this.ringSystems = new Map();
+            this.atmospheres = new Map();
+
+            // Texture loader
+            this.textureLoader = new THREE.TextureLoader();
 
             this.isInitialized = false;
         }
 
         /**
-         * Initialize the planet factory
+         * Initialize the enhanced planet factory
          */
         async init() {
             try {
+                console.log('🚀 Initializing Enhanced Planet Factory with textures, moons, and rings...');
+
+                // Initialize texture loading system
+                await this.initializeTextures();
+
                 this.isInitialized = true;
 
-                if (window.Helpers) {
-                    window.Helpers.log('Enhanced Planet Factory initialized', 'debug');
-                }
+                console.log('✅ Enhanced Planet Factory initialized successfully');
 
             } catch (error) {
-                if (window.Helpers) {
-                    window.Helpers.handleError(error, 'PlanetFactory.init');
-                }
+                console.error('❌ Failed to initialize Enhanced Planet Factory:', error);
                 throw error;
             }
         }
 
         /**
-         * Create a planet with all visual effects
-         * @param {Object} planetData - Planet data from API
-         * @param {Object} options - Creation options
-         * @returns {Promise<THREE.Group>} Planet group with all components
+         * Initialize texture loading system
+         */
+        async initializeTextures() {
+            // Define texture paths - adjust these paths to match your texture files
+            this.texturePaths = {
+                // Planet textures
+                sun: '/static/textures/sun_texture.jpg',
+                mercury: '/static/textures/mercury_texture.jpg',
+                venus: '/static/textures/venus_texture.jpg',
+                earth: '/static/textures/earth_texture.jpg',
+                mars: '/static/textures/mars_texture.jpg',
+                jupiter: '/static/textures/jupiter_texture.jpg',
+                saturn: '/static/textures/saturn_texture.jpg',
+                uranus: '/static/textures/uranus_texture.jpg',
+                neptune: '/static/textures/neptune_texture.jpg',
+                pluto: '/static/textures/pluto_texture.jpg',
+
+                // Moon textures
+                moon: '/static/textures/moon_texture.jpg',
+                phobos: '/static/textures/phobos_texture.jpg',
+                deimos: '/static/textures/deimos_texture.jpg',
+                io: '/static/textures/io_texture.jpg',
+                europa: '/static/textures/europa_texture.jpg',
+                ganymede: '/static/textures/ganymede_texture.jpg',
+                callisto: '/static/textures/callisto_texture.jpg',
+                titan: '/static/textures/titan_texture.jpg',
+                enceladus: '/static/textures/enceladus_texture.jpg',
+
+                // Ring textures
+                saturn_rings: '/static/textures/saturn_rings.png',
+                uranus_rings: '/static/textures/uranus_rings.png',
+                jupiter_rings: '/static/textures/jupiter_rings.png',
+                neptune_rings: '/static/textures/neptune_rings.png',
+
+                // Normal/bump maps
+                earth_normal: '/static/textures/earth_normal.jpg',
+                mars_normal: '/static/textures/mars_normal.jpg',
+                moon_normal: '/static/textures/moon_normal.jpg'
+            };
+
+            console.log('🎨 Texture loading system initialized');
+        }
+
+        /**
+         * Enhanced planet creation with textures, moons, and rings
          */
         async createPlanet(planetData, options = {}) {
             if (!this.isInitialized) {
@@ -66,7 +114,9 @@ window.PlanetFactory = (function() {
                     quality: this.options.quality,
                     enableAtmosphere: this.options.enableAtmosphere && this.shouldHaveAtmosphere(planetData),
                     enableRings: this.options.enableRings && planetData.has_rings,
+                    enableMoons: this.options.enableMoons && planetData.has_moons,
                     enableGlow: planetData.name === 'Sun',
+                    enableTextures: this.options.enableTextures,
                     ...options
                 };
 
@@ -75,8 +125,10 @@ window.PlanetFactory = (function() {
                 planetGroup.name = `${planetData.name}_group`;
                 planetGroup.userData = { planetData, type: 'planet' };
 
-                // Create main planet mesh
-                const planetMesh = await this.createPlanetMesh(planetData, planetOptions);
+                console.log(`🪐 Creating enhanced ${planetData.name} with textures...`);
+
+                // Create main planet mesh with texture
+                const planetMesh = await this.createEnhancedPlanetMesh(planetData, planetOptions);
                 planetGroup.add(planetMesh);
 
                 // Add atmosphere if applicable
@@ -90,10 +142,19 @@ window.PlanetFactory = (function() {
 
                 // Add ring system if applicable
                 if (planetOptions.enableRings) {
-                    const rings = await this.createRingSystem(planetData, planetOptions);
+                    const rings = await this.createEnhancedRingSystem(planetData, planetOptions);
                     if (rings) {
                         planetGroup.add(rings);
                         this.ringSystems.set(planetData.name, rings);
+                    }
+                }
+
+                // Add moon system if applicable
+                if (planetOptions.enableMoons) {
+                    const moons = await this.createMoonSystem(planetData, planetOptions);
+                    if (moons && moons.children.length > 0) {
+                        planetGroup.add(moons);
+                        this.moonSystems.set(planetData.name, moons);
                     }
                 }
 
@@ -108,41 +169,28 @@ window.PlanetFactory = (function() {
                 // Store planet instance
                 this.planetInstances.set(planetData.name, planetGroup);
 
-                if (window.Helpers) {
-                    window.Helpers.log(`Created enhanced planet: ${planetData.name}`, 'debug');
-                }
+                console.log(`✅ Enhanced ${planetData.name} created successfully`);
 
                 return planetGroup;
 
             } catch (error) {
-                if (window.Helpers) {
-                    window.Helpers.handleError(error, `PlanetFactory.createPlanet(${planetData.name})`);
-                }
-
-                // Return basic fallback planet
+                console.error(`❌ Failed to create enhanced planet ${planetData.name}:`, error);
                 return this.createFallbackPlanet(planetData);
             }
         }
 
         /**
-         * Create the main planet mesh with advanced materials
-         * @param {Object} planetData - Planet data
-         * @param {Object} options - Creation options
-         * @returns {Promise<THREE.Mesh>} Planet mesh
+         * Create enhanced planet mesh with texture loading
          */
-        async createPlanetMesh(planetData, options = {}) {
-            // Get or create geometry
+        async createEnhancedPlanetMesh(planetData, options = {}) {
             const geometry = this.getOrCreateGeometry(planetData, options);
+            const material = await this.createEnhancedMaterial(planetData, options);
 
-            // Create advanced material
-            const material = await this.createAdvancedMaterial(planetData, options);
-
-            // Create mesh
             const mesh = new THREE.Mesh(geometry, material);
             mesh.name = planetData.name;
             mesh.userData = { planetData, type: 'planetMesh' };
 
-            // Set position and scale with corrected values
+            // Set position and scale
             const scaledSize = this.calculateScaledSize(planetData);
             mesh.scale.setScalar(scaledSize);
 
@@ -156,64 +204,10 @@ window.PlanetFactory = (function() {
         }
 
         /**
-         * Calculate planet size scaling for realistic appearance
+         * Create enhanced material with texture loading
          */
-        calculateScaledSize(planetData) {
-            // Much smaller scaling for realistic appearance
-            const MIN_SIZE = 0.3;  // Minimum visible size
-            const MAX_SIZE = 6.0;  // Maximum size (for Sun)
-
-            let scaledSize;
-
-            if (planetData.name === 'Sun') {
-                // Sun should be larger but not overwhelming
-                scaledSize = 5.0;
-            } else {
-                // Scale planets relative to Earth with better proportions
-                const earthDiameter = 12756; // km
-                const sizeRatio = planetData.diameter / earthDiameter;
-
-                // Apply logarithmic scaling for better visibility of smaller planets
-                if (sizeRatio < 0.1) {
-                    scaledSize = 0.3 + (sizeRatio * 5); // Boost tiny planets
-                } else if (sizeRatio < 1.0) {
-                    scaledSize = 0.5 + (sizeRatio * 1.5); // Small to medium planets
-                } else {
-                    scaledSize = 1.0 + Math.log(sizeRatio) * 0.8; // Large planets
-                }
-            }
-
-            return Math.max(MIN_SIZE, Math.min(MAX_SIZE, scaledSize));
-        }
-
-        /**
-         * Get or create sphere geometry with appropriate detail level
-         * @param {Object} planetData - Planet data
-         * @param {Object} options - Creation options
-         * @returns {THREE.SphereGeometry} Sphere geometry
-         */
-        getOrCreateGeometry(planetData, options = {}) {
-            const segments = this.getSegmentCount(planetData, options.quality);
-            const geometryKey = `sphere_${segments}`;
-
-            if (this.geometryCache.has(geometryKey)) {
-                return this.geometryCache.get(geometryKey);
-            }
-
-            const geometry = new THREE.SphereGeometry(1, segments, segments);
-            this.geometryCache.set(geometryKey, geometry);
-
-            return geometry;
-        }
-
-        /**
-         * Create advanced material with textures and effects
-         * @param {Object} planetData - Planet data
-         * @param {Object} options - Creation options
-         * @returns {Promise<THREE.Material>} Advanced material
-         */
-        async createAdvancedMaterial(planetData, options = {}) {
-            const materialKey = `${planetData.name}_${options.quality || 'medium'}`;
+        async createEnhancedMaterial(planetData, options = {}) {
+            const materialKey = `${planetData.name}_${options.quality || 'medium'}_textured`;
 
             if (this.materialCache.has(materialKey)) {
                 return this.materialCache.get(materialKey);
@@ -222,9 +216,9 @@ window.PlanetFactory = (function() {
             let material;
 
             if (planetData.name === 'Sun') {
-                material = await this.createSunMaterial(planetData, options);
+                material = await this.createEnhancedSunMaterial(planetData, options);
             } else {
-                material = await this.createPlanetMaterial(planetData, options);
+                material = await this.createEnhancedPlanetMaterial(planetData, options);
             }
 
             this.materialCache.set(materialKey, material);
@@ -232,132 +226,651 @@ window.PlanetFactory = (function() {
         }
 
         /**
-         * Create sun material with emissive properties - FIXED
-         * @param {Object} planetData - Sun data
-         * @param {Object} options - Creation options
-         * @returns {Promise<THREE.Material>} Sun material
+         * Create enhanced sun material with texture
          */
-        async createSunMaterial(planetData, options = {}) {
+        async createEnhancedSunMaterial(planetData, options = {}) {
             const baseColor = new THREE.Color(planetData.color_hex || '#FDB813');
 
-            // Create sun material with proper emissive properties
-            const material = new THREE.MeshBasicMaterial({
-                color: baseColor,
-                // Don't set emissive on MeshBasicMaterial - it doesn't support it
-                transparent: false
-            });
+            try {
+                // Try to load sun texture
+                const texture = await this.loadTexture('sun');
 
-            // For advanced sun effects, we could use custom shaders, but keep it simple for now
-            if (options.quality === 'high') {
-                // Add custom properties for future shader enhancement
+                const material = new THREE.MeshBasicMaterial({
+                    map: texture,
+                    emissive: baseColor,
+                    emissiveIntensity: 0.8
+                });
+
                 material.userData = {
                     isSun: true,
                     baseColor: baseColor,
                     intensity: 1.2
                 };
-            }
 
-            return material;
+                console.log('🌟 Sun texture loaded successfully');
+                return material;
+
+            } catch (error) {
+                console.warn('☀️ Sun texture failed to load, using procedural material');
+
+                // Fallback to enhanced procedural sun material
+                return new THREE.MeshBasicMaterial({
+                    color: baseColor,
+                    emissive: baseColor,
+                    emissiveIntensity: 0.6
+                });
+            }
         }
 
         /**
-         * Create planet material with advanced lighting
-         * @param {Object} planetData - Planet data
-         * @param {Object} options - Creation options
-         * @returns {Promise<THREE.Material>} Planet material
+         * Create enhanced planet material with textures
          */
-        async createPlanetMaterial(planetData, options = {}) {
+        async createEnhancedPlanetMaterial(planetData, options = {}) {
+            const baseColor = new THREE.Color(planetData.color_hex || '#888888');
+            const planetName = planetData.name.toLowerCase();
+
+            try {
+                // Load main texture
+                const texture = await this.loadTexture(planetName);
+
+                const materialOptions = {
+                    map: texture,
+                    roughness: this.getRoughness(planetData),
+                    metalness: this.getMetalness(planetData),
+                };
+
+                // Try to load normal map if available
+                try {
+                    const normalMap = await this.loadTexture(`${planetName}_normal`);
+                    materialOptions.normalMap = normalMap;
+                    console.log(`🗺️ Normal map loaded for ${planetData.name}`);
+                } catch (normalError) {
+                    console.log(`📍 No normal map available for ${planetData.name}`);
+                }
+
+                // Add planet-specific properties
+                this.addPlanetSpecificProperties(materialOptions, planetData);
+
+                const material = new THREE.MeshStandardMaterial(materialOptions);
+
+                material.userData = {
+                    planetData: planetData,
+                    originalColor: baseColor.clone(),
+                    hasTexture: true
+                };
+
+                console.log(`🎨 Texture loaded successfully for ${planetData.name}`);
+                return material;
+
+            } catch (error) {
+                console.warn(`🎨 Texture failed to load for ${planetData.name}, using procedural fallback`);
+
+                // Create procedural fallback material
+                return this.createProceduralMaterial(planetData);
+            }
+        }
+
+        /**
+         * Create procedural fallback material
+         */
+        createProceduralMaterial(planetData) {
             const baseColor = new THREE.Color(planetData.color_hex || '#888888');
 
-            // Create material based on planet type
             const materialOptions = {
                 color: baseColor,
                 roughness: this.getRoughness(planetData),
                 metalness: this.getMetalness(planetData),
-                transparent: false
             };
 
-            // Add special properties for different planet types
             this.addPlanetSpecificProperties(materialOptions, planetData);
 
             const material = new THREE.MeshStandardMaterial(materialOptions);
-
-            // Add custom properties for advanced effects
             material.userData = {
                 planetData: planetData,
                 originalColor: baseColor.clone(),
-                animationTime: 0
+                hasTexture: false
             };
 
             return material;
         }
 
         /**
-         * Add planet-specific material properties
-         * @param {Object} materialOptions - Material options to modify
-         * @param {Object} planetData - Planet data
+         * Load texture with caching and fallbacks
          */
-        addPlanetSpecificProperties(materialOptions, planetData) {
-            switch (planetData.name) {
-                case 'Earth':
-                    materialOptions.roughness = 0.7;
-                    materialOptions.metalness = 0.1;
-                    // Add subtle blue emissive for atmosphere glow
-                    materialOptions.emissive = new THREE.Color(0x001122);
-                    materialOptions.emissiveIntensity = 0.05;
-                    break;
+        async loadTexture(textureName) {
+            if (this.textureCache.has(textureName)) {
+                return this.textureCache.get(textureName);
+            }
 
-                case 'Mars':
-                    materialOptions.roughness = 0.9;
-                    materialOptions.metalness = 0.05;
-                    // Dusty appearance
-                    break;
+            return new Promise((resolve, reject) => {
+                const texturePath = this.texturePaths[textureName];
 
-                case 'Venus':
-                    materialOptions.roughness = 0.1;
-                    materialOptions.metalness = 0.0;
-                    // Bright, reflective atmosphere
-                    materialOptions.emissive = new THREE.Color(planetData.color_hex);
-                    materialOptions.emissiveIntensity = 0.1;
-                    break;
+                if (!texturePath) {
+                    reject(new Error(`No texture path defined for ${textureName}`));
+                    return;
+                }
 
-                case 'Jupiter':
-                case 'Saturn':
-                    materialOptions.roughness = 0.1;
-                    materialOptions.metalness = 0.0;
-                    // Gas giant appearance
-                    break;
+                this.textureLoader.load(
+                    texturePath,
+                    (texture) => {
+                        // Configure texture
+                        texture.wrapS = THREE.RepeatWrapping;
+                        texture.wrapT = THREE.RepeatWrapping;
+                        texture.magFilter = THREE.LinearFilter;
+                        texture.minFilter = THREE.LinearMipMapLinearFilter;
+                        texture.generateMipmaps = true;
 
-                case 'Uranus':
-                case 'Neptune':
-                    materialOptions.roughness = 0.2;
-                    materialOptions.metalness = 0.0;
-                    // Ice giant with subtle glow
-                    materialOptions.emissive = new THREE.Color(planetData.color_hex);
-                    materialOptions.emissiveIntensity = 0.05;
-                    break;
+                        // Cache the texture
+                        this.textureCache.set(textureName, texture);
+                        resolve(texture);
+                    },
+                    undefined,
+                    (error) => {
+                        console.warn(`Failed to load texture ${texturePath}:`, error);
+                        reject(error);
+                    }
+                );
+            });
+        }
 
-                default:
-                    // Default rocky appearance
-                    materialOptions.roughness = 0.8;
-                    materialOptions.metalness = 0.1;
+        /**
+         * Create enhanced ring system with textures
+         */
+        async createEnhancedRingSystem(planetData, options = {}) {
+            if (!planetData.has_rings) {
+                return null;
+            }
+
+            const ringGroup = new THREE.Group();
+            ringGroup.name = `${planetData.name}_rings`;
+
+            const planetName = planetData.name.toLowerCase();
+
+            console.log(`💍 Creating ring system for ${planetData.name}...`);
+
+            if (planetName === 'saturn') {
+                await this.createSaturnRings(ringGroup);
+            } else if (planetName === 'uranus') {
+                await this.createUranusRings(ringGroup);
+            } else if (planetName === 'jupiter') {
+                await this.createJupiterRings(ringGroup);
+            } else if (planetName === 'neptune') {
+                await this.createNeptuneRings(ringGroup);
+            } else {
+                await this.createGenericRings(ringGroup, planetData);
+            }
+
+            console.log(`✅ Ring system created for ${planetData.name}`);
+            return ringGroup;
+        }
+
+        /**
+         * Create Saturn's detailed ring system with texture
+         */
+        async createSaturnRings(ringGroup) {
+            try {
+                const ringTexture = await this.loadTexture('saturn_rings');
+
+                // Saturn's main ring system
+                const geometry = new THREE.RingGeometry(1.2, 2.5, 128);
+
+                const material = new THREE.MeshBasicMaterial({
+                    map: ringTexture,
+                    transparent: true,
+                    opacity: 0.8,
+                    side: THREE.DoubleSide,
+                    depthWrite: false,
+                    alphaTest: 0.1
+                });
+
+                const ringMesh = new THREE.Mesh(geometry, material);
+                ringMesh.rotation.x = Math.PI / 2;
+                ringGroup.add(ringMesh);
+
+                console.log('🪐 Saturn rings texture loaded successfully');
+
+            } catch (error) {
+                console.warn('💍 Saturn ring texture failed, using procedural rings');
+                await this.createProceduralSaturnRings(ringGroup);
             }
         }
 
         /**
+         * Create procedural Saturn rings as fallback
+         */
+        async createProceduralSaturnRings(ringGroup) {
+            const ringDivisions = [
+                { inner: 1.2, outer: 1.5, opacity: 0.8, color: 0xCCCCCC },
+                { inner: 1.6, outer: 1.9, opacity: 0.6, color: 0xAAAAAA },
+                { inner: 2.0, outer: 2.3, opacity: 0.9, color: 0xDDDDDD },
+                { inner: 2.4, outer: 2.5, opacity: 0.4, color: 0x999999 }
+            ];
+
+            for (const ring of ringDivisions) {
+                const geometry = new THREE.RingGeometry(ring.inner, ring.outer, 64);
+                const material = new THREE.MeshBasicMaterial({
+                    color: ring.color,
+                    transparent: true,
+                    opacity: ring.opacity,
+                    side: THREE.DoubleSide,
+                    depthWrite: false
+                });
+
+                const ringMesh = new THREE.Mesh(geometry, material);
+                ringMesh.rotation.x = Math.PI / 2;
+                ringMesh.rotation.z = Math.random() * Math.PI * 2;
+                ringGroup.add(ringMesh);
+            }
+        }
+
+        /**
+         * Create Uranus rings
+         */
+        async createUranusRings(ringGroup) {
+            try {
+                const ringTexture = await this.loadTexture('uranus_rings');
+
+                const geometry = new THREE.RingGeometry(1.8, 2.2, 64);
+                const material = new THREE.MeshBasicMaterial({
+                    map: ringTexture,
+                    transparent: true,
+                    opacity: 0.4,
+                    side: THREE.DoubleSide,
+                    depthWrite: false
+                });
+
+                const ringMesh = new THREE.Mesh(geometry, material);
+                ringMesh.rotation.x = Math.PI / 2;
+                ringMesh.rotation.z = Math.PI / 2; // Uranus rings are vertical
+                ringGroup.add(ringMesh);
+
+            } catch (error) {
+                // Fallback to simple ring
+                const geometry = new THREE.RingGeometry(1.8, 2.2, 64);
+                const material = new THREE.MeshBasicMaterial({
+                    color: 0x4FD0FF,
+                    transparent: true,
+                    opacity: 0.3,
+                    side: THREE.DoubleSide,
+                    depthWrite: false
+                });
+
+                const ringMesh = new THREE.Mesh(geometry, material);
+                ringMesh.rotation.x = Math.PI / 2;
+                ringMesh.rotation.z = Math.PI / 2;
+                ringGroup.add(ringMesh);
+            }
+        }
+
+        /**
+         * Create Jupiter's faint ring system
+         */
+        async createJupiterRings(ringGroup) {
+            const geometry = new THREE.RingGeometry(1.4, 1.8, 32);
+            const material = new THREE.MeshBasicMaterial({
+                color: 0xD2691E,
+                transparent: true,
+                opacity: 0.2,
+                side: THREE.DoubleSide,
+                depthWrite: false
+            });
+
+            const ringMesh = new THREE.Mesh(geometry, material);
+            ringMesh.rotation.x = Math.PI / 2;
+            ringGroup.add(ringMesh);
+        }
+
+        /**
+         * Create Neptune's ring arcs
+         */
+        async createNeptuneRings(ringGroup) {
+            // Neptune has ring arcs rather than complete rings
+            const arcCount = 4;
+            for (let i = 0; i < arcCount; i++) {
+                const geometry = new THREE.RingGeometry(1.5, 1.7, 16, 1, i * Math.PI / 2, Math.PI / 4);
+                const material = new THREE.MeshBasicMaterial({
+                    color: 0x4169E1,
+                    transparent: true,
+                    opacity: 0.4,
+                    side: THREE.DoubleSide,
+                    depthWrite: false
+                });
+
+                const ringMesh = new THREE.Mesh(geometry, material);
+                ringMesh.rotation.x = Math.PI / 2;
+                ringGroup.add(ringMesh);
+            }
+        }
+
+        /**
+         * Create generic ring system
+         */
+        async createGenericRings(ringGroup, planetData) {
+            const geometry = new THREE.RingGeometry(1.2, 2.0, 64);
+            const ringColor = new THREE.Color(planetData.color_hex).multiplyScalar(0.7);
+
+            const material = new THREE.MeshBasicMaterial({
+                color: ringColor,
+                transparent: true,
+                opacity: 0.6,
+                side: THREE.DoubleSide,
+                depthWrite: false
+            });
+
+            const ringMesh = new THREE.Mesh(geometry, material);
+            ringMesh.rotation.x = Math.PI / 2;
+            ringGroup.add(ringMesh);
+        }
+
+        /**
+         * Create moon system for planets
+         */
+        async createMoonSystem(planetData, options = {}) {
+            if (!planetData.has_moons || !planetData.moon_count) {
+                return null;
+            }
+
+            const moonGroup = new THREE.Group();
+            moonGroup.name = `${planetData.name}_moons`;
+
+            const planetName = planetData.name.toLowerCase();
+
+            console.log(`🌙 Creating moon system for ${planetData.name} (${planetData.moon_count} moons)...`);
+
+            // Create specific moon systems for major planets
+            switch (planetName) {
+                case 'earth':
+                    await this.createEarthMoons(moonGroup);
+                    break;
+                case 'mars':
+                    await this.createMarsMoons(moonGroup);
+                    break;
+                case 'jupiter':
+                    await this.createJupiterMoons(moonGroup);
+                    break;
+                case 'saturn':
+                    await this.createSaturnMoons(moonGroup);
+                    break;
+                default:
+                    await this.createGenericMoons(moonGroup, planetData);
+                    break;
+            }
+
+            console.log(`✅ Moon system created for ${planetData.name}`);
+            return moonGroup;
+        }
+
+        /**
+         * Create Earth's moon system
+         */
+        async createEarthMoons(moonGroup) {
+            try {
+                const moonTexture = await this.loadTexture('moon');
+                let normalMap = null;
+
+                try {
+                    normalMap = await this.loadTexture('moon_normal');
+                } catch (e) {
+                    console.log('Moon normal map not available');
+                }
+
+                const geometry = new THREE.SphereGeometry(0.3, 32, 32);
+                const material = new THREE.MeshStandardMaterial({
+                    map: moonTexture,
+                    normalMap: normalMap,
+                    roughness: 0.9,
+                    metalness: 0.0
+                });
+
+                const moon = new THREE.Mesh(geometry, material);
+                moon.name = 'Moon';
+                moon.position.set(8, 0, 0); // Distance from Earth
+                moon.castShadow = true;
+                moon.receiveShadow = true;
+
+                moon.userData = {
+                    type: 'moon',
+                    orbitalRadius: 8,
+                    orbitalSpeed: 0.1,
+                    rotationSpeed: 0.1,
+                    moonData: {
+                        name: 'Moon',
+                        diameter: 3474.8, // km
+                        distance: 384400 // km from Earth
+                    }
+                };
+
+                moonGroup.add(moon);
+                console.log('🌙 Earth\'s Moon created with texture');
+
+            } catch (error) {
+                console.warn('🌙 Moon texture failed, using procedural moon');
+                this.createProceduralMoon(moonGroup, 'Moon', 8, 0.3, 0x999999);
+            }
+        }
+
+        /**
+         * Create Mars moon system (Phobos and Deimos)
+         */
+        async createMarsMoons(moonGroup) {
+            // Phobos
+            try {
+                const phobosTexture = await this.loadTexture('phobos');
+                this.createTexturedMoon(moonGroup, 'Phobos', 4, 0.15, phobosTexture);
+            } catch (error) {
+                this.createProceduralMoon(moonGroup, 'Phobos', 4, 0.15, 0x8B7765);
+            }
+
+            // Deimos
+            try {
+                const deimosTexture = await this.loadTexture('deimos');
+                this.createTexturedMoon(moonGroup, 'Deimos', 6, 0.1, deimosTexture);
+            } catch (error) {
+                this.createProceduralMoon(moonGroup, 'Deimos', 6, 0.1, 0x8B7765);
+            }
+
+            console.log('🔴 Mars moons (Phobos & Deimos) created');
+        }
+
+        /**
+         * Create Jupiter's major moons
+         */
+        async createJupiterMoons(moonGroup) {
+            const majorMoons = [
+                { name: 'Io', distance: 10, size: 0.4, texture: 'io', color: 0xFFFF99 },
+                { name: 'Europa', distance: 13, size: 0.35, texture: 'europa', color: 0xCCCCFF },
+                { name: 'Ganymede', distance: 16, size: 0.5, texture: 'ganymede', color: 0x999999 },
+                { name: 'Callisto', distance: 20, size: 0.45, texture: 'callisto', color: 0x555555 }
+            ];
+
+            for (const moonData of majorMoons) {
+                try {
+                    const texture = await this.loadTexture(moonData.texture);
+                    this.createTexturedMoon(moonGroup, moonData.name, moonData.distance, moonData.size, texture);
+                } catch (error) {
+                    this.createProceduralMoon(moonGroup, moonData.name, moonData.distance, moonData.size, moonData.color);
+                }
+            }
+
+            console.log('🪐 Jupiter\'s major moons created');
+        }
+
+        /**
+         * Create Saturn's major moons
+         */
+        async createSaturnMoons(moonGroup) {
+            const majorMoons = [
+                { name: 'Titan', distance: 18, size: 0.45, texture: 'titan', color: 0xFFAA55 },
+                { name: 'Enceladus', distance: 12, size: 0.2, texture: 'enceladus', color: 0xFFFFFF }
+            ];
+
+            for (const moonData of majorMoons) {
+                try {
+                    const texture = await this.loadTexture(moonData.texture);
+                    this.createTexturedMoon(moonGroup, moonData.name, moonData.distance, moonData.size, texture);
+                } catch (error) {
+                    this.createProceduralMoon(moonGroup, moonData.name, moonData.distance, moonData.size, moonData.color);
+                }
+            }
+
+            console.log('🪐 Saturn\'s major moons created');
+        }
+
+        /**
+         * Create generic moons for other planets
+         */
+        async createGenericMoons(moonGroup, planetData) {
+            const moonCount = Math.min(planetData.moon_count, 4); // Limit for performance
+
+            for (let i = 0; i < moonCount; i++) {
+                const distance = 6 + i * 3;
+                const size = 0.1 + Math.random() * 0.2;
+                const color = 0x888888 + Math.random() * 0x444444;
+
+                this.createProceduralMoon(moonGroup, `Moon_${i + 1}`, distance, size, color);
+            }
+        }
+
+        /**
+         * Create textured moon
+         */
+        createTexturedMoon(moonGroup, name, distance, size, texture) {
+            const geometry = new THREE.SphereGeometry(size, 16, 16);
+            const material = new THREE.MeshStandardMaterial({
+                map: texture,
+                roughness: 0.9,
+                metalness: 0.0
+            });
+
+            const moon = new THREE.Mesh(geometry, material);
+            moon.name = name;
+            moon.position.set(distance, 0, 0);
+            moon.castShadow = true;
+            moon.receiveShadow = true;
+
+            moon.userData = {
+                type: 'moon',
+                orbitalRadius: distance,
+                orbitalSpeed: 0.1 / distance, // Slower for farther moons
+                rotationSpeed: 0.05,
+                moonData: { name: name }
+            };
+
+            moonGroup.add(moon);
+        }
+
+        /**
+         * Create procedural moon
+         */
+        createProceduralMoon(moonGroup, name, distance, size, color) {
+            const geometry = new THREE.SphereGeometry(size, 16, 16);
+            const material = new THREE.MeshStandardMaterial({
+                color: color,
+                roughness: 0.9,
+                metalness: 0.0
+            });
+
+            const moon = new THREE.Mesh(geometry, material);
+            moon.name = name;
+            moon.position.set(distance, 0, 0);
+            moon.castShadow = true;
+            moon.receiveShadow = true;
+
+            moon.userData = {
+                type: 'moon',
+                orbitalRadius: distance,
+                orbitalSpeed: 0.1 / distance,
+                rotationSpeed: 0.05,
+                moonData: { name: name }
+            };
+
+            moonGroup.add(moon);
+        }
+
+        /**
+         * Update system with moon orbits and rotations
+         */
+        update(deltaTime) {
+            if (!this.isInitialized) return;
+
+            this.planetInstances.forEach((planetGroup, planetName) => {
+                this.updatePlanetGroup(planetGroup, deltaTime);
+            });
+        }
+
+        /**
+         * Update individual planet group including moons
+         */
+        updatePlanetGroup(planetGroup, deltaTime) {
+            const planetData = planetGroup.userData.planetData;
+
+            // Update main planet rotation
+            const planetMesh = planetGroup.getObjectByName(planetData.name);
+            if (planetMesh && planetData.rotation_period) {
+                const rotationSpeed = (2 * Math.PI) / (planetData.rotation_period * 3600);
+                planetMesh.rotation.y += rotationSpeed * deltaTime * 1000;
+            }
+
+            // Update moon orbits
+            const moonSystem = this.moonSystems.get(planetData.name);
+            if (moonSystem) {
+                this.updateMoonOrbits(moonSystem, deltaTime);
+            }
+
+            // Update shader animations
+            planetGroup.traverse((child) => {
+                if (child.material && child.material.uniforms) {
+                    if (child.material.uniforms.time) {
+                        child.material.uniforms.time.value += deltaTime;
+                    }
+                }
+            });
+
+            // Update atmosphere effects
+            const atmosphere = this.atmospheres.get(planetData.name);
+            if (atmosphere && atmosphere.material.uniforms) {
+                atmosphere.material.uniforms.time.value += deltaTime;
+            }
+        }
+
+        /**
+         * Update moon orbits
+         */
+        updateMoonOrbits(moonSystem, deltaTime) {
+            moonSystem.children.forEach(moon => {
+                if (moon.userData && moon.userData.type === 'moon') {
+                    const userData = moon.userData;
+
+                    // Update orbital position
+                    if (userData.orbitalAngle === undefined) {
+                        userData.orbitalAngle = Math.random() * Math.PI * 2;
+                    }
+
+                    userData.orbitalAngle += userData.orbitalSpeed * deltaTime * 10;
+
+                    // Calculate new position
+                    const x = Math.cos(userData.orbitalAngle) * userData.orbitalRadius;
+                    const z = Math.sin(userData.orbitalAngle) * userData.orbitalRadius;
+                    const y = Math.sin(userData.orbitalAngle * 2) * 0.5; // Slight vertical motion
+
+                    moon.position.set(x, y, z);
+
+                    // Update moon rotation
+                    moon.rotation.y += userData.rotationSpeed * deltaTime * 10;
+                }
+            });
+        }
+
+        /**
          * Create atmosphere effect
-         * @param {Object} planetData - Planet data
-         * @param {Object} options - Creation options
-         * @returns {Promise<THREE.Mesh|null>} Atmosphere mesh
          */
         async createAtmosphere(planetData, options = {}) {
             if (!this.shouldHaveAtmosphere(planetData)) {
                 return null;
             }
 
-            const atmosphereRadius = 1.05; // Slightly larger than planet
+            const atmosphereRadius = 1.05;
             const geometry = new THREE.SphereGeometry(atmosphereRadius, 32, 32);
-
             const atmosphereColor = this.getAtmosphereColor(planetData);
 
             const material = new THREE.ShaderMaterial({
@@ -387,12 +900,10 @@ window.PlanetFactory = (function() {
                     varying vec3 vPosition;
                     
                     void main() {
-                        // Fresnel effect for atmosphere
                         vec3 viewDirection = normalize(cameraPosition - vPosition);
                         float fresnel = 1.0 - abs(dot(viewDirection, vNormal));
                         fresnel = pow(fresnel, fresnelPower);
                         
-                        // Subtle animation
                         float pulse = sin(time * 2.0) * 0.1 + 0.9;
                         
                         gl_FragColor = vec4(atmosphereColor, fresnel * opacity * pulse);
@@ -412,109 +923,11 @@ window.PlanetFactory = (function() {
         }
 
         /**
-         * Create ring system for planets
-         * @param {Object} planetData - Planet data
-         * @param {Object} options - Creation options
-         * @returns {Promise<THREE.Group|null>} Ring system group
-         */
-        async createRingSystem(planetData, options = {}) {
-            if (!planetData.has_rings) {
-                return null;
-            }
-
-            const ringGroup = new THREE.Group();
-            ringGroup.name = `${planetData.name}_rings`;
-
-            // Create ring geometry
-            const innerRadius = 1.2; // Start outside planet
-            let outerRadius = 2.0;    // Default outer radius
-
-            // Specific ring parameters for known planets
-            if (planetData.name === 'Saturn') {
-                outerRadius = 2.5;
-                // Create multiple ring sections for Saturn
-                await this.createSaturnRings(ringGroup, innerRadius, outerRadius);
-            } else {
-                // Generic ring system
-                await this.createGenericRings(ringGroup, innerRadius, outerRadius, planetData);
-            }
-
-            return ringGroup;
-        }
-
-        /**
-         * Create Saturn's detailed ring system
-         * @param {THREE.Group} ringGroup - Ring group to add to
-         * @param {number} innerRadius - Inner radius
-         * @param {number} outerRadius - Outer radius
-         */
-        async createSaturnRings(ringGroup, innerRadius, outerRadius) {
-            // Saturn has multiple ring divisions
-            const ringDivisions = [
-                { inner: 1.2, outer: 1.5, opacity: 0.8, color: 0xCCCCCC },
-                { inner: 1.6, outer: 1.9, opacity: 0.6, color: 0xAAAAAA },
-                { inner: 2.0, outer: 2.3, opacity: 0.9, color: 0xDDDDDD },
-                { inner: 2.4, outer: 2.5, opacity: 0.4, color: 0x999999 }
-            ];
-
-            for (const ring of ringDivisions) {
-                const geometry = new THREE.RingGeometry(ring.inner, ring.outer, 64);
-
-                // Create ring material with transparency
-                const material = new THREE.MeshBasicMaterial({
-                    color: ring.color,
-                    transparent: true,
-                    opacity: ring.opacity,
-                    side: THREE.DoubleSide,
-                    depthWrite: false
-                });
-
-                const ringMesh = new THREE.Mesh(geometry, material);
-                ringMesh.rotation.x = Math.PI / 2; // Rotate to horizontal
-
-                // Add slight random rotation for realism
-                ringMesh.rotation.z = Math.random() * Math.PI * 2;
-
-                ringGroup.add(ringMesh);
-            }
-        }
-
-        /**
-         * Create generic ring system
-         * @param {THREE.Group} ringGroup - Ring group to add to
-         * @param {number} innerRadius - Inner radius
-         * @param {number} outerRadius - Outer radius
-         * @param {Object} planetData - Planet data
-         */
-        async createGenericRings(ringGroup, innerRadius, outerRadius, planetData) {
-            const geometry = new THREE.RingGeometry(innerRadius, outerRadius, 64);
-
-            const ringColor = new THREE.Color(planetData.color_hex).multiplyScalar(0.7);
-
-            const material = new THREE.MeshBasicMaterial({
-                color: ringColor,
-                transparent: true,
-                opacity: 0.6,
-                side: THREE.DoubleSide,
-                depthWrite: false
-            });
-
-            const ringMesh = new THREE.Mesh(geometry, material);
-            ringMesh.rotation.x = Math.PI / 2; // Rotate to horizontal
-
-            ringGroup.add(ringMesh);
-        }
-
-        /**
          * Create sun glow effect
-         * @param {Object} planetData - Sun data
-         * @param {Object} options - Creation options
-         * @returns {Promise<THREE.Mesh>} Glow mesh
          */
         async createSunGlow(planetData, options = {}) {
-            const glowRadius = 1.5; // Larger than sun
+            const glowRadius = 1.5;
             const geometry = new THREE.SphereGeometry(glowRadius, 32, 32);
-
             const glowColor = new THREE.Color(planetData.color_hex || '#FDB813');
 
             const material = new THREE.ShaderMaterial({
@@ -545,7 +958,6 @@ window.PlanetFactory = (function() {
                         vec3 viewDirection = normalize(cameraPosition - vPosition);
                         float fresnel = 1.0 - abs(dot(viewDirection, vNormal));
                         
-                        // Pulsing effect
                         float pulse = sin(time * 3.0) * 0.2 + 0.8;
                         
                         float alpha = fresnel * intensity * pulse;
@@ -565,52 +977,7 @@ window.PlanetFactory = (function() {
             return glowMesh;
         }
 
-        /**
-         * Update planet animations
-         * @param {number} deltaTime - Time since last frame
-         */
-        update(deltaTime) {
-            if (!this.isInitialized) return;
-
-            this.planetInstances.forEach((planetGroup, planetName) => {
-                this.updatePlanetGroup(planetGroup, deltaTime);
-            });
-        }
-
-        /**
-         * Update individual planet group
-         * @param {THREE.Group} planetGroup - Planet group
-         * @param {number} deltaTime - Delta time
-         */
-        updatePlanetGroup(planetGroup, deltaTime) {
-            const planetData = planetGroup.userData.planetData;
-
-            // Update main planet rotation
-            const planetMesh = planetGroup.getObjectByName(planetData.name);
-            if (planetMesh && planetData.rotation_period) {
-                const rotationSpeed = (2 * Math.PI) / (planetData.rotation_period * 3600); // Convert hours to seconds
-                planetMesh.rotation.y += rotationSpeed * deltaTime * 1000; // Speed up for visualization
-            }
-
-            // Update shader animations
-            planetGroup.traverse((child) => {
-                if (child.material && child.material.uniforms) {
-                    if (child.material.uniforms.time) {
-                        child.material.uniforms.time.value += deltaTime;
-                    }
-                }
-            });
-
-            // Update atmosphere effects
-            const atmosphere = this.atmospheres.get(planetData.name);
-            if (atmosphere && atmosphere.material.uniforms) {
-                atmosphere.material.uniforms.time.value += deltaTime;
-            }
-        }
-
-        /**
-         * Helper methods
-         */
+        // Helper methods (existing methods from original)
         shouldHaveAtmosphere(planetData) {
             const atmosphericPlanets = ['Earth', 'Venus', 'Mars', 'Jupiter', 'Saturn', 'Uranus', 'Neptune'];
             return atmosphericPlanets.includes(planetData.name);
@@ -626,7 +993,6 @@ window.PlanetFactory = (function() {
                 'Uranus': new THREE.Color(0x4FD0FF),
                 'Neptune': new THREE.Color(0x4169E1)
             };
-
             return atmosphereColors[planetData.name] || new THREE.Color(planetData.color_hex);
         }
 
@@ -650,6 +1016,85 @@ window.PlanetFactory = (function() {
             return metalnessMap[planetData.planet_type] || 0.0;
         }
 
+        addPlanetSpecificProperties(materialOptions, planetData) {
+            switch (planetData.name) {
+                case 'Earth':
+                    materialOptions.roughness = 0.7;
+                    materialOptions.metalness = 0.1;
+                    materialOptions.emissive = new THREE.Color(0x001122);
+                    materialOptions.emissiveIntensity = 0.05;
+                    break;
+
+                case 'Mars':
+                    materialOptions.roughness = 0.9;
+                    materialOptions.metalness = 0.05;
+                    break;
+
+                case 'Venus':
+                    materialOptions.roughness = 0.1;
+                    materialOptions.metalness = 0.0;
+                    materialOptions.emissive = new THREE.Color(planetData.color_hex);
+                    materialOptions.emissiveIntensity = 0.1;
+                    break;
+
+                case 'Jupiter':
+                case 'Saturn':
+                    materialOptions.roughness = 0.1;
+                    materialOptions.metalness = 0.0;
+                    break;
+
+                case 'Uranus':
+                case 'Neptune':
+                    materialOptions.roughness = 0.2;
+                    materialOptions.metalness = 0.0;
+                    materialOptions.emissive = new THREE.Color(planetData.color_hex);
+                    materialOptions.emissiveIntensity = 0.05;
+                    break;
+
+                default:
+                    materialOptions.roughness = 0.8;
+                    materialOptions.metalness = 0.1;
+            }
+        }
+
+        calculateScaledSize(planetData) {
+            const MIN_SIZE = 0.3;
+            const MAX_SIZE = 6.0;
+
+            let scaledSize;
+
+            if (planetData.name === 'Sun') {
+                scaledSize = 5.0;
+            } else {
+                const earthDiameter = 12756;
+                const sizeRatio = planetData.diameter / earthDiameter;
+
+                if (sizeRatio < 0.1) {
+                    scaledSize = 0.3 + (sizeRatio * 5);
+                } else if (sizeRatio < 1.0) {
+                    scaledSize = 0.5 + (sizeRatio * 1.5);
+                } else {
+                    scaledSize = 1.0 + Math.log(sizeRatio) * 0.8;
+                }
+            }
+
+            return Math.max(MIN_SIZE, Math.min(MAX_SIZE, scaledSize));
+        }
+
+        getOrCreateGeometry(planetData, options = {}) {
+            const segments = this.getSegmentCount(planetData, options.quality);
+            const geometryKey = `sphere_${segments}`;
+
+            if (this.geometryCache.has(geometryKey)) {
+                return this.geometryCache.get(geometryKey);
+            }
+
+            const geometry = new THREE.SphereGeometry(1, segments, segments);
+            this.geometryCache.set(geometryKey, geometry);
+
+            return geometry;
+        }
+
         getSegmentCount(planetData, quality = 'medium') {
             const baseSegments = {
                 'low': this.options.lowQualitySegments,
@@ -657,7 +1102,6 @@ window.PlanetFactory = (function() {
                 'high': this.options.highQualitySegments
             }[quality] || this.options.defaultSegments;
 
-            // Adjust for planet importance
             if (planetData.name === 'Sun' || planetData.name === 'Earth') {
                 return Math.min(baseSegments * 1.5, 128);
             }
@@ -665,11 +1109,6 @@ window.PlanetFactory = (function() {
             return baseSegments;
         }
 
-        /**
-         * Create fallback planet for error cases
-         * @param {Object} planetData - Planet data
-         * @returns {THREE.Group} Basic planet group
-         */
         createFallbackPlanet(planetData) {
             const geometry = new THREE.SphereGeometry(1, 32, 32);
             const material = new THREE.MeshStandardMaterial({
@@ -682,7 +1121,6 @@ window.PlanetFactory = (function() {
             mesh.name = planetData.name;
             mesh.userData = { planetData, type: 'fallback' };
 
-            // Apply correct scaling
             const scaledSize = this.calculateScaledSize(planetData);
             mesh.scale.setScalar(scaledSize);
 
@@ -696,24 +1134,17 @@ window.PlanetFactory = (function() {
 
         /**
          * Set quality level
-         * @param {string} quality - Quality level ('low', 'medium', 'high')
          */
         setQuality(quality) {
             this.options.quality = quality;
-
-            // Clear caches to force recreation with new quality
             this.materialCache.clear();
             this.geometryCache.clear();
 
-            if (window.Helpers) {
-                window.Helpers.log(`Planet factory quality set to ${quality}`, 'debug');
-            }
+            console.log(`Planet factory quality set to ${quality}`);
         }
 
         /**
          * Get planet instance
-         * @param {string} planetName - Planet name
-         * @returns {THREE.Group|null} Planet group
          */
         getPlanet(planetName) {
             return this.planetInstances.get(planetName) || null;
@@ -721,7 +1152,6 @@ window.PlanetFactory = (function() {
 
         /**
          * Get all planet instances
-         * @returns {Map} Map of planet instances
          */
         getAllPlanets() {
             return this.planetInstances;
@@ -729,14 +1159,15 @@ window.PlanetFactory = (function() {
 
         /**
          * Get factory statistics
-         * @returns {Object} Factory stats
          */
         getStats() {
             return {
                 isInitialized: this.isInitialized,
                 planetsCreated: this.planetInstances.size,
                 materialsCached: this.materialCache.size,
+                texturesCached: this.textureCache.size,
                 geometriesCached: this.geometryCache.size,
+                moonSystems: this.moonSystems.size,
                 ringSystems: this.ringSystems.size,
                 atmospheres: this.atmospheres.size,
                 quality: this.options.quality
@@ -755,16 +1186,19 @@ window.PlanetFactory = (function() {
             this.materialCache.forEach(material => material.dispose());
             this.materialCache.clear();
 
+            // Dispose textures
+            this.textureCache.forEach(texture => texture.dispose());
+            this.textureCache.clear();
+
             // Clear planet instances
             this.planetInstances.clear();
+            this.moonSystems.clear();
             this.ringSystems.clear();
             this.atmospheres.clear();
 
             this.isInitialized = false;
 
-            if (window.Helpers) {
-                window.Helpers.log('Planet factory disposed', 'debug');
-            }
+            console.log('Enhanced Planet factory disposed');
         }
     }
 
@@ -779,9 +1213,4 @@ window.PlanetFactory = (function() {
     };
 })();
 
-// Make available globally
-if (typeof module !== 'undefined' && module.exports) {
-    module.exports = window.PlanetFactory;
-}
-
-console.log('Enhanced PlanetFactory module loaded successfully');
+console.log('✅ Enhanced PlanetFactory with textures, moons, and rings loaded successfully');
