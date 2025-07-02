@@ -1,11 +1,11 @@
 // static/js/solar-system/camera-controls.js
-// Enhanced camera controls with smooth mouse interaction and focus capabilities - COMPLETELY FIXED
+// FIXED: Complete camera controls with planet following capability
 
 window.CameraControls = (function() {
     'use strict';
 
     /**
-     * Camera controls class for smooth 3D navigation
+     * Camera controls class for smooth 3D navigation with planet following
      */
     class CameraControls {
         constructor(options = {}) {
@@ -19,6 +19,7 @@ window.CameraControls = (function() {
                 minDistance: 5,
                 maxPolarAngle: Math.PI,
                 minPolarAngle: 0,
+                followSmoothness: 0.05,
                 ...options
             };
 
@@ -34,6 +35,13 @@ window.CameraControls = (function() {
             this.target = new THREE.Vector3(0, 0, 0);
             this.spherical = new THREE.Spherical();
             this.sphericalDelta = new THREE.Spherical();
+
+            // Planet following system
+            this.followedPlanet = null;
+            this.followOffset = new THREE.Vector3();
+            this.isFollowing = false;
+            this.followDistance = 50;
+            this.lastPlanetPosition = new THREE.Vector3();
 
             // Mouse state
             this.rotateStart = new THREE.Vector2();
@@ -96,7 +104,7 @@ window.CameraControls = (function() {
                 this.isInitialized = true;
 
                 if (window.Helpers) {
-                    window.Helpers.log('Camera controls initialized', 'debug');
+                    window.Helpers.log('Camera controls with planet following initialized', 'debug');
                 }
 
             } catch (error) {
@@ -108,7 +116,7 @@ window.CameraControls = (function() {
         }
 
         /**
-         * Update spherical coordinates from current camera position
+         * FIXED: Update spherical coordinates from current camera position
          */
         updateSphericalFromCamera() {
             const offset = new THREE.Vector3();
@@ -141,6 +149,113 @@ window.CameraControls = (function() {
             const target = element || this.domElement;
             target.addEventListener(type, listener);
             this.eventListeners.push({ target, type, listener });
+        }
+
+        /**
+         * Focus on and follow a planet
+         */
+        focusAndFollowPlanet(planetObject, planetData, distance = null, duration = 2000) {
+            if (!planetObject) {
+                console.warn('No planet object provided for following');
+                return;
+            }
+
+            // Calculate appropriate distance if not provided
+            if (distance === null) {
+                const planetSize = planetData ? this.calculatePlanetViewDistance(planetData) : 50;
+                distance = planetSize;
+            }
+
+            this.followDistance = distance;
+            this.followedPlanet = planetObject;
+            this.isFollowing = true;
+
+            // Get current planet position
+            const planetPosition = new THREE.Vector3();
+            planetObject.getWorldPosition(planetPosition);
+            this.lastPlanetPosition.copy(planetPosition);
+
+            // Calculate offset from planet to current camera position
+            this.followOffset.copy(this.camera.position).sub(planetPosition).normalize().multiplyScalar(distance);
+
+            // Smooth transition to following position
+            this.animateToFollowPosition(planetPosition, duration);
+
+            if (window.Helpers) {
+                window.Helpers.log(`Following planet: ${planetData?.name || 'Unknown'}`, 'debug');
+            }
+        }
+
+        /**
+         * Stop following the current planet
+         */
+        stopFollowing() {
+            this.isFollowing = false;
+            this.followedPlanet = null;
+
+            if (window.Helpers) {
+                window.Helpers.log('Stopped following planet', 'debug');
+            }
+        }
+
+        /**
+         * Calculate appropriate viewing distance for a planet
+         */
+        calculatePlanetViewDistance(planetData) {
+            if (!planetData) return 50;
+
+            // Base distance on planet size
+            const earthDiameter = 12756;
+            const planetSize = planetData.diameter || earthDiameter;
+            const sizeRatio = planetSize / earthDiameter;
+
+            // Minimum distance for small planets, scaled distance for large ones
+            let distance = Math.max(15, sizeRatio * 25);
+
+            // Special cases for very large planets
+            if (planetData.name === 'Jupiter') distance = 60;
+            if (planetData.name === 'Saturn') distance = 70;
+            if (planetData.name === 'Sun') distance = 100;
+
+            return distance;
+        }
+
+        /**
+         * Animate camera to follow position
+         */
+        animateToFollowPosition(targetPosition, duration = 2000) {
+            if (this.isAnimating) {
+                cancelAnimationFrame(this.animationId);
+            }
+
+            const startPosition = this.camera.position.clone();
+            const endPosition = targetPosition.clone().add(this.followOffset);
+            const startTarget = this.target.clone();
+            const endTarget = targetPosition.clone();
+
+            const startTime = performance.now();
+            this.isAnimating = true;
+
+            const animate = (currentTime) => {
+                const elapsed = currentTime - startTime;
+                const progress = Math.min(elapsed / duration, 1);
+                const easedProgress = this.easeInOutCubic(progress);
+
+                // Interpolate camera position and target
+                this.camera.position.lerpVectors(startPosition, endPosition, easedProgress);
+                this.target.lerpVectors(startTarget, endTarget, easedProgress);
+                this.camera.lookAt(this.target);
+
+                this.updateSphericalFromCamera();
+
+                if (progress < 1) {
+                    this.animationId = requestAnimationFrame(animate);
+                } else {
+                    this.isAnimating = false;
+                }
+            };
+
+            this.animationId = requestAnimationFrame(animate);
         }
 
         /**
@@ -192,18 +307,32 @@ window.CameraControls = (function() {
         onMouseMove(event) {
             event.preventDefault();
 
-            switch (this.state) {
-                case this.STATE.ROTATE:
-                    if (this.options.enableRotate) {
-                        this.handleMouseMoveRotate(event);
-                    }
-                    break;
-
-                case this.STATE.PAN:
-                    if (this.options.enablePan) {
-                        this.handleMouseMovePan(event);
-                    }
-                    break;
+            // If following a planet, modify behavior
+            if (this.isFollowing && this.followedPlanet) {
+                switch (this.state) {
+                    case this.STATE.ROTATE:
+                        if (this.options.enableRotate) {
+                            this.handleMouseMoveRotateFollowing(event);
+                        }
+                        break;
+                    case this.STATE.PAN:
+                        // Disable panning while following
+                        break;
+                }
+            } else {
+                // Original mouse move behavior
+                switch (this.state) {
+                    case this.STATE.ROTATE:
+                        if (this.options.enableRotate) {
+                            this.handleMouseMoveRotate(event);
+                        }
+                        break;
+                    case this.STATE.PAN:
+                        if (this.options.enablePan) {
+                            this.handleMouseMovePan(event);
+                        }
+                        break;
+                }
             }
         }
 
@@ -223,8 +352,34 @@ window.CameraControls = (function() {
         onMouseWheel(event) {
             event.preventDefault();
 
-            if (this.options.enableZoom) {
-                this.handleMouseWheel(event);
+            if (!this.options.enableZoom) return;
+
+            const zoomScale = this.getZoomScale();
+
+            if (this.isFollowing && this.followedPlanet) {
+                // Zoom towards/away from followed planet
+                if (event.deltaY < 0) {
+                    this.followDistance = Math.max(this.options.minDistance, this.followDistance / zoomScale);
+                } else {
+                    this.followDistance = Math.min(this.options.maxDistance, this.followDistance * zoomScale);
+                }
+
+                // Update follow offset to maintain distance
+                this.followOffset.normalize().multiplyScalar(this.followDistance);
+
+                // Update camera position
+                const planetPosition = new THREE.Vector3();
+                this.followedPlanet.getWorldPosition(planetPosition);
+                this.camera.position.copy(planetPosition).add(this.followOffset);
+                this.camera.lookAt(planetPosition);
+            } else {
+                // Original zoom behavior
+                if (event.deltaY < 0) {
+                    this.dollyOut(zoomScale);
+                } else {
+                    this.dollyIn(zoomScale);
+                }
+                this.update();
             }
         }
 
@@ -251,6 +406,43 @@ window.CameraControls = (function() {
             this.update();
         }
 
+        handleMouseMoveRotateFollowing(event) {
+            this.rotateEnd.set(event.clientX, event.clientY);
+            this.rotateDelta.subVectors(this.rotateEnd, this.rotateStart).multiplyScalar(this.rotateSpeed);
+
+            const element = this.domElement;
+
+            // Get current planet position
+            const planetPosition = new THREE.Vector3();
+            if (this.followedPlanet) {
+                this.followedPlanet.getWorldPosition(planetPosition);
+            }
+
+            // Calculate rotation around the planet
+            const spherical = new THREE.Spherical();
+            spherical.setFromVector3(this.camera.position.clone().sub(planetPosition));
+
+            // Apply rotation
+            spherical.theta -= 2 * Math.PI * this.rotateDelta.x / element.clientHeight;
+            spherical.phi += 2 * Math.PI * this.rotateDelta.y / element.clientHeight;
+
+            // Clamp phi
+            spherical.phi = Math.max(0.01, Math.min(Math.PI - 0.01, spherical.phi));
+
+            // Update camera position around the planet
+            const newPosition = new THREE.Vector3();
+            newPosition.setFromSpherical(spherical);
+            newPosition.add(planetPosition);
+
+            this.camera.position.copy(newPosition);
+            this.camera.lookAt(planetPosition);
+
+            // Update follow offset
+            this.followOffset.copy(this.camera.position).sub(planetPosition);
+
+            this.rotateStart.copy(this.rotateEnd);
+        }
+
         handleMouseDownPan(event) {
             this.panStart.set(event.clientX, event.clientY);
         }
@@ -262,16 +454,6 @@ window.CameraControls = (function() {
             this.pan(this.panDelta.x, this.panDelta.y);
 
             this.panStart.copy(this.panEnd);
-            this.update();
-        }
-
-        handleMouseWheel(event) {
-            if (event.deltaY < 0) {
-                this.dollyOut(this.getZoomScale());
-            } else if (event.deltaY > 0) {
-                this.dollyIn(this.getZoomScale());
-            }
-
             this.update();
         }
 
@@ -318,9 +500,6 @@ window.CameraControls = (function() {
             this.state = this.STATE.NONE;
         }
 
-        /**
-         * Touch action handlers
-         */
         handleTouchStartRotate(event) {
             this.rotateStart.set(event.touches[0].pageX, event.touches[0].pageY);
         }
@@ -452,9 +631,16 @@ window.CameraControls = (function() {
         }
 
         /**
-         * Update camera position
+         * Update camera position and handle planet following
          */
         update() {
+            // Handle planet following
+            if (this.isFollowing && this.followedPlanet && !this.isAnimating) {
+                this.updatePlanetFollowing();
+                return true;
+            }
+
+            // Original update logic
             const offset = new THREE.Vector3();
 
             // Apply spherical delta
@@ -486,12 +672,44 @@ window.CameraControls = (function() {
         }
 
         /**
+         * Update camera position to follow planet
+         */
+        updatePlanetFollowing() {
+            if (!this.followedPlanet) return;
+
+            // Get current planet position
+            const currentPlanetPosition = new THREE.Vector3();
+            this.followedPlanet.getWorldPosition(currentPlanetPosition);
+
+            // Calculate how much the planet has moved
+            const planetMovement = new THREE.Vector3()
+                .subVectors(currentPlanetPosition, this.lastPlanetPosition);
+
+            // Only update if planet has moved significantly
+            if (planetMovement.length() > 0.1) {
+                // Smoothly move the target to the new planet position
+                this.target.lerp(currentPlanetPosition, this.options.followSmoothness);
+
+                // Update camera position to maintain the follow offset
+                const desiredCameraPosition = currentPlanetPosition.clone().add(this.followOffset);
+                this.camera.position.lerp(desiredCameraPosition, this.options.followSmoothness);
+
+                // Always look at the planet
+                this.camera.lookAt(this.target);
+
+                // Update spherical coordinates to match new position
+                this.updateSphericalFromCamera();
+
+                // Store the new planet position
+                this.lastPlanetPosition.copy(currentPlanetPosition);
+            }
+        }
+
+        /**
          * Set camera position
-         * @param {number} x - X position
-         * @param {number} y - Y position
-         * @param {number} z - Z position
          */
         setPosition(x, y, z) {
+            this.stopFollowing(); // Stop following when manually setting position
             this.camera.position.set(x, y, z);
             this.updateSphericalFromCamera();
             this.update();
@@ -499,11 +717,9 @@ window.CameraControls = (function() {
 
         /**
          * Set camera target
-         * @param {number} x - Target X
-         * @param {number} y - Target Y
-         * @param {number} z - Target Z
          */
         lookAt(x, y, z) {
+            this.stopFollowing(); // Stop following when manually setting target
             this.target.set(x, y, z);
             this.camera.lookAt(this.target);
             this.updateSphericalFromCamera();
@@ -511,9 +727,6 @@ window.CameraControls = (function() {
 
         /**
          * Focus camera on a specific target with smooth animation
-         * @param {THREE.Vector3} targetPosition - Target position
-         * @param {number} distance - Viewing distance
-         * @param {number} duration - Animation duration in milliseconds
          */
         focusOn(targetPosition, distance = 50, duration = 2000) {
             if (this.isAnimating) {
@@ -612,6 +825,8 @@ window.CameraControls = (function() {
         get Target() { return this.target; }
         get IsInitialized() { return this.isInitialized; }
         get IsAnimating() { return this.isAnimating; }
+        get IsFollowing() { return this.isFollowing; }
+        get FollowedPlanet() { return this.followedPlanet; }
     }
 
     // Public API
@@ -630,4 +845,4 @@ if (typeof module !== 'undefined' && module.exports) {
     module.exports = window.CameraControls;
 }
 
-console.log('CameraControls module loaded successfully');
+console.log('FIXED CameraControls module with planet following loaded successfully');

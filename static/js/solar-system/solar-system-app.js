@@ -55,6 +55,124 @@ window.SolarSystemApp = class {
     }
 
     /**
+     * Enhanced focus on planet with following capability
+     * @param {string} planetName - Name of planet to focus on
+     * @param {boolean} shouldFollow - Whether to follow the planet (default: true)
+     */
+    focusOnPlanet(planetName, shouldFollow = true) {
+        const planetGroup = this.planetInstances.get(planetName);
+        if (!planetGroup || !this.cameraControls) {
+            console.warn(`Planet ${planetName} not found or camera controls not available`);
+            return;
+        }
+
+        const planetData = this.planets.find(p => p.name === planetName);
+        if (!planetData) {
+            console.warn(`Planet data for ${planetName} not found`);
+            return;
+        }
+
+        if (shouldFollow) {
+            // Use the new following functionality
+            this.cameraControls.focusAndFollowPlanet(planetGroup, planetData);
+
+            if (window.NotificationSystem) {
+                window.NotificationSystem.showInfo(`📹 Following ${planetName}`);
+            }
+        } else {
+            // Original behavior - just focus without following
+            const planetPosition = planetGroup.position;
+            const planetSize = this.planetFactory?.calculateScaledSize(planetData) || 1;
+            const viewDistance = Math.max(planetSize * 8, 10);
+
+            this.cameraControls.focusOn(planetPosition, viewDistance);
+
+            if (window.NotificationSystem) {
+                window.NotificationSystem.showInfo(`🎯 Focused on ${planetName}`);
+            }
+        }
+
+        // Update UI
+        if (window.ControlPanel) {
+            window.ControlPanel.updateSelectedPlanet(planetName);
+            window.ControlPanel.updateCameraDistance(this.cameraControls.followDistance || 50);
+        }
+    }
+
+    /**
+     * Stop following the current planet
+     */
+    stopFollowingPlanet() {
+        if (this.cameraControls && this.cameraControls.IsFollowing) {
+            this.cameraControls.stopFollowing();
+
+            if (window.NotificationSystem) {
+                window.NotificationSystem.showInfo('📹 Stopped following planet');
+            }
+
+            if (window.ControlPanel) {
+                window.ControlPanel.updateSelectedPlanet('None');
+            }
+        }
+    }
+
+    /**
+     * Enhanced reset camera view that stops following
+     */
+    resetCameraView() {
+        if (this.cameraControls) {
+            this.cameraControls.stopFollowing(); // Stop following first
+            this.cameraControls.setPosition(0, 30, 80);
+            this.cameraControls.lookAt(0, 0, 0);
+        }
+
+        if (window.ControlPanel) {
+            window.ControlPanel.updateCameraDistance(85.4);
+            window.ControlPanel.updateSelectedPlanet('None');
+        }
+
+        if (window.NotificationSystem) {
+            window.NotificationSystem.showInfo('📷 Camera reset to overview');
+        }
+    }
+
+    /**
+     * Toggle between following and static focus for current planet
+     */
+    togglePlanetFollowing() {
+        if (!this.cameraControls) return;
+
+        if (this.cameraControls.IsFollowing) {
+            this.stopFollowingPlanet();
+        } else {
+            // Try to follow the last selected planet
+            const interactionManager = this.interactionManager;
+            if (interactionManager && interactionManager.SelectedPlanet) {
+                this.focusOnPlanet(interactionManager.SelectedPlanet.name, true);
+            } else {
+                if (window.NotificationSystem) {
+                    window.NotificationSystem.showWarning('No planet selected to follow');
+                }
+            }
+        }
+    }
+
+    /**
+     * Get current camera/following status
+     */
+    getCameraStatus() {
+        if (!this.cameraControls) {
+            return { isFollowing: false, followedPlanet: null };
+        }
+
+        return {
+            isFollowing: this.cameraControls.IsFollowing,
+            followedPlanet: this.cameraControls.FollowedPlanet?.userData?.planetData?.name || null,
+            followDistance: this.cameraControls.followDistance || null
+        };
+    }
+
+    /**
      * Initialize planet labels system
      */
     async initPlanetLabels() {
@@ -752,30 +870,30 @@ window.SolarSystemApp = class {
         }
     }
 
-    /**
-     * Focus camera on specific planet
-     */
-    focusOnPlanet(planetName) {
-        const planetGroup = this.planetInstances.get(planetName);
-        if (!planetGroup || !this.cameraControls) return;
-
-        const planetPosition = planetGroup.position;
-        const planetData = this.planets.find(p => p.name === planetName);
-
-        if (planetData) {
-            // Calculate appropriate viewing distance based on planet size
-            const planetSize = this.planetFactory.calculateScaledSize(planetData);
-            const viewDistance = Math.max(planetSize * 8, 10);
-
-            // Smooth camera transition
-            this.cameraControls.focusOn(planetPosition, viewDistance);
-
-            if (window.ControlPanel) {
-                window.ControlPanel.updateSelectedPlanet(planetName);
-                window.ControlPanel.updateCameraDistance(viewDistance);
-            }
-        }
-    }
+    // /**
+    //  * Focus camera on specific planet
+    //  */
+    // focusOnPlanet(planetName) {
+    //     const planetGroup = this.planetInstances.get(planetName);
+    //     if (!planetGroup || !this.cameraControls) return;
+    //
+    //     const planetPosition = planetGroup.position;
+    //     const planetData = this.planets.find(p => p.name === planetName);
+    //
+    //     if (planetData) {
+    //         // Calculate appropriate viewing distance based on planet size
+    //         const planetSize = this.planetFactory.calculateScaledSize(planetData);
+    //         const viewDistance = Math.max(planetSize * 8, 10);
+    //
+    //         // Smooth camera transition
+    //         this.cameraControls.focusOn(planetPosition, viewDistance);
+    //
+    //         if (window.ControlPanel) {
+    //             window.ControlPanel.updateSelectedPlanet(planetName);
+    //             window.ControlPanel.updateCameraDistance(viewDistance);
+    //         }
+    //     }
+    // }
 
     /**
      * Set quality level
@@ -1000,37 +1118,37 @@ window.SolarSystemApp = class {
         }
     }
 
-    /**
-     * Focus camera on specific planet
-     */
-    focusOnPlanet(planetName) {
-        const planetGroup = this.planetInstances.get(planetName);
-        if (!planetGroup || !this.cameraControls) {
-            console.warn(`Planet ${planetName} not found or camera controls not available`);
-            return;
-        }
-
-        const planetPosition = planetGroup.position;
-        const planetData = this.planets.find(p => p.name === planetName);
-
-        if (planetData) {
-            // Calculate appropriate viewing distance
-            const planetSize = this.planetFactory?.calculateScaledSize(planetData) || 1;
-            const viewDistance = Math.max(planetSize * 8, 10);
-
-            // Smooth camera transition
-            this.cameraControls.focusOn(planetPosition, viewDistance);
-
-            if (window.ControlPanel) {
-                window.ControlPanel.updateSelectedPlanet(planetName);
-                window.ControlPanel.updateCameraDistance(viewDistance);
-            }
-
-            if (window.NotificationSystem) {
-                window.NotificationSystem.showInfo(`Focusing on ${planetName}`);
-            }
-        }
-    }
+    // /**
+    //  * Focus camera on specific planet
+    //  */
+    // focusOnPlanet(planetName) {
+    //     const planetGroup = this.planetInstances.get(planetName);
+    //     if (!planetGroup || !this.cameraControls) {
+    //         console.warn(`Planet ${planetName} not found or camera controls not available`);
+    //         return;
+    //     }
+    //
+    //     const planetPosition = planetGroup.position;
+    //     const planetData = this.planets.find(p => p.name === planetName);
+    //
+    //     if (planetData) {
+    //         // Calculate appropriate viewing distance
+    //         const planetSize = this.planetFactory?.calculateScaledSize(planetData) || 1;
+    //         const viewDistance = Math.max(planetSize * 8, 10);
+    //
+    //         // Smooth camera transition
+    //         this.cameraControls.focusOn(planetPosition, viewDistance);
+    //
+    //         if (window.ControlPanel) {
+    //             window.ControlPanel.updateSelectedPlanet(planetName);
+    //             window.ControlPanel.updateCameraDistance(viewDistance);
+    //         }
+    //
+    //         if (window.NotificationSystem) {
+    //             window.NotificationSystem.showInfo(`Focusing on ${planetName}`);
+    //         }
+    //     }
+    // }
 
     /**
      * Get comprehensive performance stats

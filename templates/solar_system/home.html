@@ -639,24 +639,13 @@ function setupViewControls() {
 }
 
 function setupPlanetInteractionHandlers() {
-    // Control panel integration
-    document.addEventListener('toggleFeature', (event) => {
-        const { feature, enabled } = event.detail;
+    console.log('Setting up planet interaction handlers...');
 
-        if (feature === 'labels' && window.solarSystemApp && window.solarSystemApp.planetLabels) {
-            window.solarSystemApp.planetLabels.setVisible(enabled);
-
-            const toggleLabelsBtn = document.getElementById('toggle-labels');
-            if (toggleLabelsBtn) {
-                updateToggleButtonState(toggleLabelsBtn, enabled);
-            }
-        }
-    });
-
-    // Planet selection events
-    document.addEventListener('planetSelected', (event) => {
+    // Enhanced planet selection with following option
+    document.addEventListener('planetSelected', function(event) {
         const planetData = event.detail.planet;
 
+        // Update UI
         const interactionStatus = document.getElementById('interaction-status');
         if (interactionStatus) {
             interactionStatus.textContent = planetData.name;
@@ -669,9 +658,40 @@ function setupPlanetInteractionHandlers() {
                 totalMoons.textContent = planetData.moon_count;
             }
         }
+
+        // Show notification with follow option
+        if (window.NotificationSystem) {
+            window.NotificationSystem.showInfo(
+                '🪐 ' + planetData.name + ' selected - Double-click to follow', 3000
+            );
+        }
     });
 
-    document.addEventListener('planetDeselected', () => {
+    // Enhanced double-click to follow planet
+    document.addEventListener('focusPlanet', function(event) {
+        const planetName = event.detail.planet;
+
+        if (window.solarSystemApp && window.solarSystemApp.focusOnPlanet) {
+            window.solarSystemApp.focusOnPlanet(planetName, true);
+        }
+    });
+
+    // Control panel integration
+    document.addEventListener('toggleFeature', function(event) {
+        const feature = event.detail.feature;
+        const enabled = event.detail.enabled;
+
+        if (feature === 'labels' && window.solarSystemApp && window.solarSystemApp.planetLabels) {
+            window.solarSystemApp.planetLabels.setVisible(enabled);
+
+            const toggleLabelsBtn = document.getElementById('toggle-labels');
+            if (toggleLabelsBtn) {
+                updateToggleButtonState(toggleLabelsBtn, enabled);
+            }
+        }
+    });
+
+    document.addEventListener('planetDeselected', function() {
         const interactionStatus = document.getElementById('interaction-status');
         if (interactionStatus) {
             interactionStatus.textContent = 'Active';
@@ -680,78 +700,161 @@ function setupPlanetInteractionHandlers() {
     });
 }
 
-// Helper functions
-function updateViewButtons(activeButton) {
-    const viewBtns = document.querySelectorAll('.view-btn');
-    viewBtns.forEach(btn => btn.classList.remove('active'));
-    if (activeButton) {
-        activeButton.classList.add('active');
-    }
-}
+// Separate keyboard setup function
+function setupKeyboardControls() {
+    document.addEventListener('keydown', function(event) {
+        if (window.solarSystemApp && window.solarSystemApp.handleKeyPress) {
+            window.solarSystemApp.handleKeyPress(event);
+        }
 
-function updateToggleButtonState(button, enabled) {
-    if (enabled) {
-        button.style.background = 'rgba(74, 158, 255, 0.2)';
-        button.style.borderColor = '#4a9eff';
-        button.style.color = '#4a9eff';
-    } else {
-        button.style.background = '';
-        button.style.borderColor = '';
-        button.style.color = '';
-    }
-}
-
-// Global event handlers
-window.addEventListener('resize', () => {
-    if (window.solarSystemApp && window.solarSystemApp.handleResize) {
-        window.solarSystemApp.handleResize();
-    }
-});
-
-document.addEventListener('visibilitychange', () => {
-    if (window.solarSystemApp && window.solarSystemApp.handleVisibilityChange) {
-        window.solarSystemApp.handleVisibilityChange(document.hidden);
-    }
-});
-
-// Keyboard shortcuts
-document.addEventListener('keydown', (event) => {
-    if (window.solarSystemApp && window.solarSystemApp.handleKeyPress) {
-        window.solarSystemApp.handleKeyPress(event);
-    }
-
-    switch (event.code) {
-        case 'KeyI':
-            if (window.solarSystemApp && window.solarSystemApp.interactionManager) {
-                const selectedPlanet = window.solarSystemApp.interactionManager.SelectedPlanet;
-                if (selectedPlanet) {
-                    const infoPanel = document.getElementById('info-panel');
-                    if (infoPanel) {
-                        infoPanel.classList.toggle('hidden');
+        switch (event.code) {
+            case 'KeyI':
+                if (window.solarSystemApp && window.solarSystemApp.interactionManager) {
+                    const selectedPlanet = window.solarSystemApp.interactionManager.SelectedPlanet;
+                    if (selectedPlanet) {
+                        const infoPanel = document.getElementById('info-panel');
+                        if (infoPanel) {
+                            infoPanel.classList.toggle('hidden');
+                        }
                     }
                 }
-            }
-            break;
+                break;
 
-        case 'KeyL':
-            event.preventDefault();
-            const toggleLabelsBtn = document.getElementById('toggle-labels');
-            if (toggleLabelsBtn) {
-                toggleLabelsBtn.click();
-            }
-            break;
-
-        case 'KeyS':
-            if (event.ctrlKey || event.metaKey) {
+            case 'KeyF':
                 event.preventDefault();
-                const screenshotBtn = document.getElementById('screenshot-btn');
-                if (screenshotBtn) {
-                    screenshotBtn.click();
+                if (window.solarSystemApp && window.solarSystemApp.togglePlanetFollowing) {
+                    window.solarSystemApp.togglePlanetFollowing();
                 }
+                break;
+
+            case 'KeyL':
+                event.preventDefault();
+                const toggleLabelsBtn = document.getElementById('toggle-labels');
+                if (toggleLabelsBtn) {
+                    toggleLabelsBtn.click();
+                }
+                break;
+
+            case 'KeyS':
+                if (event.ctrlKey || event.metaKey) {
+                    event.preventDefault();
+                    const screenshotBtn = document.getElementById('screenshot-btn');
+                    if (screenshotBtn) {
+                        screenshotBtn.click();
+                    }
+                }
+                break;
+
+            case 'Escape':
+                event.preventDefault();
+                if (window.solarSystemApp && window.solarSystemApp.stopFollowingPlanet) {
+                    window.solarSystemApp.stopFollowingPlanet();
+                }
+                // Also close any open panels
+                const helpModal = document.getElementById('help-modal');
+                const systemInfoModal = document.getElementById('system-info-modal');
+                const infoPanel = document.getElementById('info-panel');
+
+                if (helpModal && !helpModal.classList.contains('hidden')) {
+                    helpModal.classList.add('hidden');
+                }
+                if (systemInfoModal && !systemInfoModal.classList.contains('hidden')) {
+                    systemInfoModal.classList.add('hidden');
+                }
+                if (infoPanel && !infoPanel.classList.contains('hidden')) {
+                    infoPanel.classList.add('hidden');
+                }
+                break;
+        }
+    });
+}
+
+// Update the setupPostInitializationFeatures function to include new features
+function setupPostInitializationFeatures() {
+    console.log('Setting up post-initialization features...');
+
+    // Show info cards after a delay
+    setTimeout(function() {
+        const infoCards = document.getElementById('info-cards');
+        if (infoCards) {
+            infoCards.classList.remove('hidden');
+            console.log('Info cards displayed');
+        }
+
+        // Update interaction status
+        const interactionStatus = document.getElementById('interaction-status');
+        if (interactionStatus) {
+            interactionStatus.textContent = 'Active';
+            interactionStatus.style.color = '#10b981';
+        }
+    }, 1000);
+
+    // Start rotating facts
+    startFactRotation();
+
+    // Setup event handlers
+    setupPlanetInteractionHandlers();
+    setupKeyboardControls();
+
+    // Add following features
+    setTimeout(function() {
+        addFollowToggleButton();
+        updateHelpModal();
+    }, 1500);
+
+    console.log('Post-initialization features setup complete');
+}
+
+function addFollowToggleButton() {
+    const utilityControls = document.querySelector('.utility-controls');
+    if (utilityControls) {
+        const followBtn = document.createElement('button');
+        followBtn.id = 'toggle-follow';
+        followBtn.className = 'utility-btn';
+        followBtn.title = 'Toggle Planet Following (F)';
+        followBtn.innerHTML = '📹';
+
+        followBtn.addEventListener('click', function() {
+            if (window.solarSystemApp && window.solarSystemApp.togglePlanetFollowing) {
+                window.solarSystemApp.togglePlanetFollowing();
             }
-            break;
+        });
+
+        utilityControls.appendChild(followBtn);
+        console.log('Follow toggle button added');
     }
-});
+}
+
+function updateHelpModal() {
+    // This will be called by HeaderControls when the help modal is created
+    setTimeout(function() {
+        const helpModal = document.getElementById('help-modal');
+        if (helpModal) {
+            const keyboardSections = helpModal.querySelectorAll('.info-grid');
+            if (keyboardSections.length > 1) {
+                const keyboardGrid = keyboardSections[1]; // Second grid is keyboard shortcuts
+
+                // Add new keyboard shortcuts
+                const newShortcuts = [
+                    { label: 'F:', value: 'Toggle planet following mode' },
+                    { label: 'Escape:', value: 'Stop following / Close panels' },
+                    { label: 'Double-click Planet:', value: 'Follow planet with camera' }
+                ];
+
+                newShortcuts.forEach(function(shortcut) {
+                    const shortcutDiv = document.createElement('div');
+                    shortcutDiv.className = 'info-item';
+                    shortcutDiv.innerHTML =
+                        '<span class="info-label">' + shortcut.label + '</span>' +
+                        '<span class="info-value">' + shortcut.value + '</span>';
+                    keyboardGrid.appendChild(shortcutDiv);
+                });
+
+                console.log('Help modal updated with following shortcuts');
+            }
+        }
+    }, 2000);
+}
 
 console.log('Fixed initialization script loaded - no freeze version');
 {% endblock %}
