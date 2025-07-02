@@ -863,7 +863,7 @@
 
 .canvas-controls {
     position: fixed !important;
-    bottom: 20px;
+    bottom: 50px;
     left: 20px;
     z-index: 500;
     pointer-events: auto;

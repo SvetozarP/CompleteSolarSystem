@@ -542,3 +542,7 @@ body.modal-open {
     will-change: transform, opacity;
     transform: translateZ(0);
 }
+
+#facts-card {
+    display: none;
+}

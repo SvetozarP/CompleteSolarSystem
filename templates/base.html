@@ -23,6 +23,18 @@
     <!-- Post-processing libraries for bloom effects -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/postprocessing/6.23.2/postprocessing.min.js"></script>
 
+    <!-- === post-processing chain (all MUST be r128) === -->
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/EffectComposer.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/RenderPass.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/ShaderPass.js"></script>
+
+    <!-- shader dependencies -->
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/shaders/CopyShader.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/shaders/LuminosityHighPassShader.js"></script>
+
+    <!-- finally, the bloom pass itself -->
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/UnrealBloomPass.js"></script>
+
     <!-- Fallback post-processing implementation -->
     <script>
     // Graceful fallback for post-processing
@@ -67,8 +79,9 @@
                 this.enabled = true;
             };
 
+
             THREE.UnrealBloomPass = function(resolution, strength, radius, threshold) {
-                this.enabled = false; // Disable bloom in fallback
+                this.enabled = false; // Disable to disable (false) bloom in fallback
                 this.strength = strength || 1.0;
                 this.radius = radius || 0.4;
                 this.threshold = threshold || 0.85;
