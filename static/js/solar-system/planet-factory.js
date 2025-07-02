@@ -412,7 +412,7 @@ window.PlanetFactory = (function() {
                 const ringTexture = await this.loadTexture('saturn_rings');
 
                 // Saturn's main ring system
-                const geometry = new THREE.RingGeometry(1.2, 2.5, 128);
+                const geometry = new THREE.RingGeometry(4.2, 6.5, 128);
 
                 const material = new THREE.MeshBasicMaterial({
                     map: ringTexture,
@@ -470,7 +470,7 @@ window.PlanetFactory = (function() {
             try {
                 const ringTexture = await this.loadTexture('uranus_rings');
 
-                const geometry = new THREE.RingGeometry(1.8, 2.2, 64);
+                const geometry = new THREE.RingGeometry(3.8, 4.2, 64);
                 const material = new THREE.MeshBasicMaterial({
                     map: ringTexture,
                     transparent: true,
@@ -506,7 +506,7 @@ window.PlanetFactory = (function() {
          * Create Jupiter's faint ring system
          */
         async createJupiterRings(ringGroup) {
-            const geometry = new THREE.RingGeometry(1.4, 1.8, 32);
+            const geometry = new THREE.RingGeometry(3.4, 3.8, 64);
             const material = new THREE.MeshBasicMaterial({
                 color: 0xD2691E,
                 transparent: true,
@@ -527,7 +527,7 @@ window.PlanetFactory = (function() {
             // Neptune has ring arcs rather than complete rings
             const arcCount = 4;
             for (let i = 0; i < arcCount; i++) {
-                const geometry = new THREE.RingGeometry(1.5, 1.7, 16, 1, i * Math.PI / 2, Math.PI / 4);
+                const geometry = new THREE.RingGeometry(3.0, 3.2, 32, 1, i * Math.PI / 2, Math.PI / 2);
                 const material = new THREE.MeshBasicMaterial({
                     color: 0x4169E1,
                     transparent: true,
