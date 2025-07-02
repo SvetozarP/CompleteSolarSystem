@@ -226,7 +226,7 @@ window.PlanetFactory = (function() {
         }
 
         /**
-         * Create enhanced sun material with texture
+         * Create enhanced sun material with texture - FIXED VERSION
          */
         async createEnhancedSunMaterial(planetData, options = {}) {
             const baseColor = new THREE.Color(planetData.color_hex || '#FDB813');
@@ -235,10 +235,11 @@ window.PlanetFactory = (function() {
                 // Try to load sun texture
                 const texture = await this.loadTexture('sun');
 
+                // Use MeshBasicMaterial for the Sun (doesn't have emissive property issues)
                 const material = new THREE.MeshBasicMaterial({
                     map: texture,
-                    emissive: baseColor,
-                    emissiveIntensity: 0.8
+                    color: baseColor.clone().multiplyScalar(1.2), // Brighter for sun effect
+                    transparent: false
                 });
 
                 material.userData = {
@@ -255,9 +256,8 @@ window.PlanetFactory = (function() {
 
                 // Fallback to enhanced procedural sun material
                 return new THREE.MeshBasicMaterial({
-                    color: baseColor,
-                    emissive: baseColor,
-                    emissiveIntensity: 0.6
+                    color: baseColor.clone().multiplyScalar(1.5), // Make it bright
+                    transparent: false
                 });
             }
         }
@@ -923,10 +923,10 @@ window.PlanetFactory = (function() {
         }
 
         /**
-         * Create sun glow effect
+         * Create sun glow effect - FIXED VERSION
          */
         async createSunGlow(planetData, options = {}) {
-            const glowRadius = 1.5;
+            const glowRadius = 1.8; // Slightly larger glow
             const geometry = new THREE.SphereGeometry(glowRadius, 32, 32);
             const glowColor = new THREE.Color(planetData.color_hex || '#FDB813');
 
@@ -934,7 +934,7 @@ window.PlanetFactory = (function() {
                 uniforms: {
                     time: { value: 0.0 },
                     glowColor: { value: glowColor },
-                    intensity: { value: 0.4 }
+                    intensity: { value: 0.6 }
                 },
                 vertexShader: `
                     varying vec3 vNormal;
@@ -958,7 +958,7 @@ window.PlanetFactory = (function() {
                         vec3 viewDirection = normalize(cameraPosition - vPosition);
                         float fresnel = 1.0 - abs(dot(viewDirection, vNormal));
                         
-                        float pulse = sin(time * 3.0) * 0.2 + 0.8;
+                        float pulse = sin(time * 2.0) * 0.3 + 0.7;
                         
                         float alpha = fresnel * intensity * pulse;
                         gl_FragColor = vec4(glowColor, alpha);

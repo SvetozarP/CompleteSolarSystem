@@ -107,18 +107,39 @@ window.ControlPanel = (function() {
             });
         }
 
-        // Checkboxes
+        // FIXED: Checkboxes with proper labels integration
         Object.keys(controls.checkboxes).forEach(key => {
             const checkbox = controls.checkboxes[key];
             if (checkbox) {
                 checkbox.addEventListener('change', (e) => {
+                    const enabled = e.target.checked;
+
+                    // Emit the toggle feature event
                     document.dispatchEvent(new CustomEvent('toggleFeature', {
-                        detail: { feature: key, enabled: e.target.checked }
+                        detail: { feature: key, enabled: enabled }
                     }));
 
+                    // Special handling for labels - also update the button state
+                    if (key === 'labels') {
+                        const toggleLabelsBtn = document.getElementById('toggle-labels');
+                        if (toggleLabelsBtn) {
+                            // Update button appearance to match checkbox state
+                            if (enabled) {
+                                toggleLabelsBtn.style.background = 'rgba(74, 158, 255, 0.2)';
+                                toggleLabelsBtn.style.borderColor = '#4a9eff';
+                                toggleLabelsBtn.style.color = '#4a9eff';
+                            } else {
+                                toggleLabelsBtn.style.background = '';
+                                toggleLabelsBtn.style.borderColor = '';
+                                toggleLabelsBtn.style.color = '';
+                            }
+                        }
+                    }
+
+                    // Show notification
                     if (window.NotificationSystem) {
                         const featureName = key.charAt(0).toUpperCase() + key.slice(1);
-                        const status = e.target.checked ? 'enabled' : 'disabled';
+                        const status = enabled ? 'enabled' : 'disabled';
                         window.NotificationSystem.showInfo(`${featureName} ${status}`);
                     }
                 });
@@ -311,6 +332,28 @@ window.ControlPanel = (function() {
             }
         },
 
+        // Synchronize feature states (useful for external toggles)
+        syncFeatureState: function(feature, enabled) {
+            const checkbox = controls.checkboxes[feature];
+            if (checkbox) {
+                checkbox.checked = enabled;
+                // Trigger the change event to update everything
+                checkbox.dispatchEvent(new Event('change'));
+            }
+        },
+
+        // Method to get all checkbox states
+        getFeatureStates: function() {
+            const states = {};
+            Object.keys(controls.checkboxes).forEach(key => {
+                const checkbox = controls.checkboxes[key];
+                if (checkbox) {
+                    states[key] = checkbox.checked;
+                }
+            });
+            return states;
+        },
+
         // Get current state
         getState: function() {
             return {
@@ -325,6 +368,7 @@ window.ControlPanel = (function() {
                 }
             };
         }
+
     };
 })();
 

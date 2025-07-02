@@ -51,6 +51,42 @@ window.SolarSystemApp = class {
 
         // Animation loop ID
         this.animationId = null;
+        this.planetLabels = null;
+    }
+
+    /**
+     * Initialize planet labels system
+     */
+    async initPlanetLabels() {
+        if (!window.PlanetLabels) {
+            if (window.Helpers) {
+                window.Helpers.log('PlanetLabels not available', 'warn');
+            }
+            return;
+        }
+
+        this.planetLabels = window.PlanetLabels.create({
+            enabled: true,
+            fontSize: '13px',
+            fontFamily: 'Orbitron, monospace',
+            backgroundColor: 'rgba(16, 22, 58, 0.9)',
+            borderColor: 'rgba(74, 158, 255, 0.7)',
+            textColor: '#ffffff',
+            fadeDistance: 180,
+            minDistance: 8,
+            maxDistance: 400
+        });
+
+        const success = this.planetLabels.init(
+            this.sceneManager.Camera,
+            this.planetInstances
+        );
+
+        if (success) {
+            if (window.Helpers) {
+                window.Helpers.log('Planet labels system initialized', 'debug');
+            }
+        }
     }
 
     /**
@@ -118,6 +154,13 @@ window.SolarSystemApp = class {
             if (window.LoadingManager) {
                 window.LoadingManager.updateProgress('Starting simulation...', 95);
             }
+
+            if (window.LoadingManager) {
+                window.LoadingManager.updateProgress('Setting up planet labels...', 92);
+            }
+
+            // Initialize planet labels
+            await this.initPlanetLabels();
 
             // Setup event listeners and start render loop
             this.setupEventListeners();
@@ -685,12 +728,14 @@ window.SolarSystemApp = class {
                 break;
 
             case 'labels':
-                if (this.interactionManager) {
-                    this.interactionManager.setLabelsVisible(enabled);
+                // FIXED: Use the proper labels system
+                if (this.planetLabels) {
+                    this.planetLabels.setVisible(enabled);
                 }
                 break;
         }
     }
+
 
     /**
      * Reset camera to default view
@@ -1017,6 +1062,10 @@ window.SolarSystemApp = class {
             stats.planets = this.planetFactory.getStats();
         }
 
+        if (this.planetLabels) {
+            stats.labels = this.planetLabels.getStats();
+        }
+
         return stats;
     }
 
@@ -1038,6 +1087,10 @@ window.SolarSystemApp = class {
         // Dispose of all systems
         if (this.interactionManager) {
             this.interactionManager.dispose();
+        }
+
+        if (this.planetLabels) {
+            this.planetLabels.dispose();
         }
 
         if (this.cameraControls) {

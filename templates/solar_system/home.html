@@ -264,7 +264,7 @@
 {% endblock %}
 
 {% block extra_js %}
-<!-- Core JavaScript files for Stage 4 -->
+<!-- Core JavaScript files for Stage 4 - FIXED ORDER -->
 <script src="{% static 'js/utils/helpers.js' %}"></script>
 <script src="{% static 'js/utils/math-utils.js' %}"></script>
 <script src="{% static 'js/utils/api-client.js' %}"></script>
@@ -274,6 +274,8 @@
 <script src="{% static 'js/ui/control-panel.js' %}"></script>
 <script src="{% static 'js/ui/info-panel-system.js' %}"></script>
 <script src="{% static 'js/ui/header-controls.js' %}"></script>
+
+<!-- Solar System Core Modules -->
 <script src="{% static 'js/solar-system/particle-systems.js' %}"></script>
 <script src="{% static 'js/solar-system/scene-manager.js' %}"></script>
 <script src="{% static 'js/solar-system/planet-factory.js' %}"></script>
@@ -281,6 +283,11 @@
 <script src="{% static 'js/solar-system/camera-controls.js' %}"></script>
 <script src="{% static 'js/solar-system/orbital-mechanics.js' %}"></script>
 <script src="{% static 'js/solar-system/interaction-manager.js' %}"></script>
+
+<!-- IMPORTANT: Planet Labels must load BEFORE solar-system-app.js -->
+<script src="{% static 'js/solar-system/planet-labels.js' %}"></script>
+
+<!-- Main Application (must be last) -->
 <script src="{% static 'js/solar-system/solar-system-app.js' %}"></script>
 {% endblock %}
 
@@ -318,7 +325,7 @@ if (window.SolarSystemApp) {
             }
         }, 2000);
 
-        // Start rotating facts
+        // Start rotating facts - FIXED: Define function before calling
         startFactRotation();
 
         // Setup additional Stage 4 event handlers
@@ -360,8 +367,38 @@ if (window.SolarSystemApp) {
     }, 2000);
 }
 
-// Stage 4 specific event handlers - COMPLETE FIXED VERSION
+// FIXED: Define startFactRotation function BEFORE it's called
+function startFactRotation() {
+    const facts = document.querySelectorAll('.fact');
+    if (facts.length === 0) {
+        console.log('No facts found for rotation');
+        return;
+    }
+
+    let currentIndex = 0;
+
+    // Start rotation
+    const rotateInterval = setInterval(() => {
+        // Remove active class from current fact
+        facts[currentIndex].classList.remove('active');
+
+        // Move to next fact
+        currentIndex = (currentIndex + 1) % facts.length;
+
+        // Add active class to new fact
+        facts[currentIndex].classList.add('active');
+    }, 7000); // Change every 7 seconds
+
+    console.log(`Started fact rotation with ${facts.length} facts`);
+
+    // Return interval ID so it can be cleared if needed
+    return rotateInterval;
+}
+
+// FIXED: Stage 4 event handlers - Complete working version
 function setupStage4EventHandlers() {
+    console.log('Setting up Stage 4 event handlers...');
+
     // Screenshot button
     const screenshotBtn = document.getElementById('screenshot-btn');
     if (screenshotBtn) {
@@ -372,18 +409,28 @@ function setupStage4EventHandlers() {
         });
     }
 
-    // Toggle labels button
+    // FIXED: Toggle labels button with proper integration
     const toggleLabelsBtn = document.getElementById('toggle-labels');
     if (toggleLabelsBtn) {
         toggleLabelsBtn.addEventListener('click', () => {
-            const labelsContainer = document.getElementById('planet-labels');
-            if (labelsContainer) {
-                const isVisible = labelsContainer.style.display !== 'none';
-                labelsContainer.style.display = isVisible ? 'none' : 'block';
+            if (window.solarSystemApp && window.solarSystemApp.planetLabels) {
+                // Use the planet labels system toggle method
+                const newState = window.solarSystemApp.planetLabels.toggle();
 
-                // Update control panel checkbox
-                if (window.ControlPanel) {
-                    window.ControlPanel.setFeature('labels', !isVisible);
+                // Update control panel checkbox to match
+                if (window.ControlPanel && window.ControlPanel.setFeature) {
+                    window.ControlPanel.setFeature('labels', newState);
+                }
+
+                // Update button appearance
+                updateToggleButtonState(toggleLabelsBtn, newState);
+
+                // Show notification
+                if (window.NotificationSystem) {
+                    window.NotificationSystem.showInfo(
+                        `🏷️ Planet Labels ${newState ? 'Enabled' : 'Disabled'}`,
+                        1500
+                    );
                 }
             }
         });
@@ -393,13 +440,13 @@ function setupStage4EventHandlers() {
     const focusSunBtn = document.getElementById('focus-sun');
     if (focusSunBtn) {
         focusSunBtn.addEventListener('click', () => {
-            if (window.solarSystemApp) {
+            if (window.solarSystemApp && window.solarSystemApp.focusOnPlanet) {
                 window.solarSystemApp.focusOnPlanet('Sun');
             }
         });
     }
 
-    // ZOOM CONTROLS
+    // ZOOM CONTROLS - Fixed to prevent duplicate notifications
     const zoomInBtn = document.getElementById('zoom-in');
     const zoomOutBtn = document.getElementById('zoom-out');
     const zoomResetBtn = document.getElementById('zoom-reset');
@@ -408,14 +455,9 @@ function setupStage4EventHandlers() {
         zoomInBtn.addEventListener('click', () => {
             if (window.solarSystemApp && window.solarSystemApp.cameraControls) {
                 const controls = window.solarSystemApp.cameraControls;
-
-                // Use built-in dolly method
                 controls.dollyIn(1.25);
                 controls.update();
 
-                console.log('Zoom in applied');
-
-                // ONLY ONE NOTIFICATION - Remove duplicates from other places
                 if (window.NotificationSystem) {
                     window.NotificationSystem.showInfo('🔍 Zoomed In', 1500);
                 }
@@ -427,14 +469,9 @@ function setupStage4EventHandlers() {
         zoomOutBtn.addEventListener('click', () => {
             if (window.solarSystemApp && window.solarSystemApp.cameraControls) {
                 const controls = window.solarSystemApp.cameraControls;
-
-                // Use built-in dolly method
                 controls.dollyOut(1.25);
                 controls.update();
 
-                console.log('Zoom out applied');
-
-                // ONLY ONE NOTIFICATION
                 if (window.NotificationSystem) {
                     window.NotificationSystem.showInfo('🔍 Zoomed Out', 1500);
                 }
@@ -444,10 +481,9 @@ function setupStage4EventHandlers() {
 
     if (zoomResetBtn) {
         zoomResetBtn.addEventListener('click', () => {
-            if (window.solarSystemApp) {
+            if (window.solarSystemApp && window.solarSystemApp.resetCameraView) {
                 window.solarSystemApp.resetCameraView();
 
-                // ONLY ONE NOTIFICATION
                 if (window.NotificationSystem) {
                     window.NotificationSystem.showInfo('📷 Camera Reset', 1500);
                 }
@@ -455,6 +491,7 @@ function setupStage4EventHandlers() {
         });
     }
 
+    // VIEW CONTROLS
     const viewTopBtn = document.getElementById('view-top');
     const viewSideBtn = document.getElementById('view-side');
     const viewAngledBtn = document.getElementById('view-angled');
@@ -466,7 +503,6 @@ function setupStage4EventHandlers() {
                 window.solarSystemApp.cameraControls.lookAt(0, 0, 0);
                 updateViewButtons(viewTopBtn);
 
-                // SINGLE NOTIFICATION ONLY
                 if (window.NotificationSystem) {
                     window.NotificationSystem.showInfo('⬆ Top View', 1500);
                 }
@@ -481,7 +517,6 @@ function setupStage4EventHandlers() {
                 window.solarSystemApp.cameraControls.lookAt(0, 0, 0);
                 updateViewButtons(viewSideBtn);
 
-                // SINGLE NOTIFICATION ONLY
                 if (window.NotificationSystem) {
                     window.NotificationSystem.showInfo('➡ Side View', 1500);
                 }
@@ -496,7 +531,6 @@ function setupStage4EventHandlers() {
                 window.solarSystemApp.cameraControls.lookAt(0, 0, 0);
                 updateViewButtons(viewAngledBtn);
 
-                // SINGLE NOTIFICATION ONLY
                 if (window.NotificationSystem) {
                     window.NotificationSystem.showInfo('⬈ Angled View', 1500);
                 }
@@ -504,14 +538,22 @@ function setupStage4EventHandlers() {
         });
     }
 
-    // Helper function to update view button states
-    function updateViewButtons(activeButton) {
-        const viewBtns = document.querySelectorAll('.view-btn');
-        viewBtns.forEach(btn => btn.classList.remove('active'));
-        if (activeButton) {
-            activeButton.classList.add('active');
+    // FIXED: Control panel checkbox integration
+    // Listen for checkbox changes from the control panel
+    document.addEventListener('toggleFeature', (event) => {
+        const { feature, enabled } = event.detail;
+
+        if (feature === 'labels' && window.solarSystemApp && window.solarSystemApp.planetLabels) {
+            // Update the planet labels system when checkbox changes
+            window.solarSystemApp.planetLabels.setVisible(enabled);
+
+            // Update toggle button appearance
+            const toggleLabelsBtn = document.getElementById('toggle-labels');
+            if (toggleLabelsBtn) {
+                updateToggleButtonState(toggleLabelsBtn, enabled);
+            }
         }
-    }
+    });
 
     // Planet selection event handler
     document.addEventListener('planetSelected', (event) => {
@@ -543,16 +585,26 @@ function setupStage4EventHandlers() {
     });
 }
 
-// Utility functions
-function startFactRotation() {
-    const facts = document.querySelectorAll('.fact');
-    let currentIndex = 0;
+// Helper function to update view button states
+function updateViewButtons(activeButton) {
+    const viewBtns = document.querySelectorAll('.view-btn');
+    viewBtns.forEach(btn => btn.classList.remove('active'));
+    if (activeButton) {
+        activeButton.classList.add('active');
+    }
+}
 
-    setInterval(() => {
-        facts[currentIndex].classList.remove('active');
-        currentIndex = (currentIndex + 1) % facts.length;
-        facts[currentIndex].classList.add('active');
-    }, 7000);
+// Helper function to update toggle button appearance
+function updateToggleButtonState(button, enabled) {
+    if (enabled) {
+        button.style.background = 'rgba(74, 158, 255, 0.2)';
+        button.style.borderColor = '#4a9eff';
+        button.style.color = '#4a9eff';
+    } else {
+        button.style.background = '';
+        button.style.borderColor = '';
+        button.style.color = '';
+    }
 }
 
 // Handle window resize
@@ -576,25 +628,37 @@ document.addEventListener('keydown', (event) => {
     }
 });
 
-// Additional keyboard shortcuts for Stage 4
+// FIXED: Additional keyboard shortcuts including labels toggle
 document.addEventListener('keydown', (event) => {
     switch (event.code) {
         case 'KeyI':
-            if (window.solarSystemApp && window.solarSystemApp.InteractionManager) {
-                const selectedPlanet = window.solarSystemApp.InteractionManager.getSelectedPlanet();
-                if (selectedPlanet && window.solarSystemApp.InfoPanelSystem) {
-                    window.solarSystemApp.InfoPanelSystem.toggle();
+            if (window.solarSystemApp && window.solarSystemApp.interactionManager) {
+                const selectedPlanet = window.solarSystemApp.interactionManager.SelectedPlanet;
+                if (selectedPlanet) {
+                    const infoPanel = document.getElementById('info-panel');
+                    if (infoPanel) {
+                        infoPanel.classList.toggle('hidden');
+                    }
                 }
             }
             break;
+
         case 'KeyL':
             event.preventDefault();
-            document.getElementById('toggle-labels')?.click();
+            // FIXED: Use the toggle labels button functionality
+            const toggleLabelsBtn = document.getElementById('toggle-labels');
+            if (toggleLabelsBtn) {
+                toggleLabelsBtn.click();
+            }
             break;
+
         case 'KeyS':
             if (event.ctrlKey || event.metaKey) {
                 event.preventDefault();
-                document.getElementById('screenshot-btn')?.click();
+                const screenshotBtn = document.getElementById('screenshot-btn');
+                if (screenshotBtn) {
+                    screenshotBtn.click();
+                }
             }
             break;
     }
