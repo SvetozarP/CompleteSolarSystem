@@ -292,82 +292,186 @@
 {% endblock %}
 
 {% block app_init %}
-// Initialize the Solar System application with Stage 4 interactivity
-console.log('Starting Solar System App with full interactivity...');
+console.log('Starting Solar System App with fixed timing...');
 
-if (window.SolarSystemApp) {
-    window.solarSystemApp = new window.SolarSystemApp({
-        containerId: 'canvas-container',
-        canvasId: 'solar-system-canvas',
-        config: window.SolarSystemConfig
-    });
+// FIXED: Initialize the app without waiting for hidden containers
+async function initializeSolarSystemApp() {
+    try {
+        console.log('Initializing Solar System App...');
 
-    window.solarSystemApp.init().then(() => {
-        console.log('Solar System application with full interactivity initialized successfully');
-
-        // Hide loading screen and show app
-        if (window.LoadingManager) {
-            window.LoadingManager.complete();
+        if (!window.SolarSystemApp) {
+            throw new Error('SolarSystemApp class not found');
         }
 
-        // Show info cards after a delay
-        setTimeout(() => {
-            const infoCards = document.getElementById('info-cards');
-            if (infoCards) {
-                infoCards.classList.remove('hidden');
-            }
+        // FIXED: Show the app container first, then initialize
+        await showAppContainer();
 
-            // Update interaction status
-            const interactionStatus = document.getElementById('interaction-status');
-            if (interactionStatus) {
-                interactionStatus.textContent = 'Active';
-                interactionStatus.style.color = '#10b981';
-            }
-        }, 2000);
+        // FIXED: Small delay to ensure CSS layout is applied
+        await new Promise(resolve => setTimeout(resolve, 50));
 
-        // Start rotating facts - FIXED: Define function before calling
-        startFactRotation();
+        console.log('Creating SolarSystemApp instance...');
+        window.solarSystemApp = new window.SolarSystemApp({
+            containerId: 'canvas-container',
+            canvasId: 'solar-system-canvas',
+            config: window.SolarSystemConfig
+        });
 
-        // Setup additional Stage 4 event handlers
-        setupStage4EventHandlers();
+        console.log('Initializing SolarSystemApp...');
+        await window.solarSystemApp.init();
 
-    }).catch(error => {
+        console.log('Solar System application initialized successfully');
+
+        // Complete loading process
+        completeLoading();
+
+        // Setup additional features
+        setupPostInitializationFeatures();
+
+    } catch (error) {
         console.error('Failed to initialize Solar System:', error);
-
-        if (window.LoadingManager) {
-            window.LoadingManager.error('Failed to load interactive 3D environment');
-        }
-
-        if (window.NotificationSystem) {
-            window.NotificationSystem.showError('Failed to initialize interactive features. Please check your browser compatibility.');
-        }
-
-        // Force complete loading anyway so user can see the error
-        setTimeout(() => {
-            const loadingScreen = document.getElementById('loading-screen');
-            const appContainer = document.getElementById('app-container');
-            if (loadingScreen && appContainer) {
-                loadingScreen.style.display = 'none';
-                appContainer.style.display = 'flex';
-            }
-        }, 3000);
-    });
-} else {
-    console.error('SolarSystemApp class not found - check if solar-system-app.js loaded correctly');
-
-    // Fallback: complete loading anyway
-    setTimeout(() => {
-        console.log('Fallback: completing loading without interactive features');
-        const loadingScreen = document.getElementById('loading-screen');
-        const appContainer = document.getElementById('app-container');
-        if (loadingScreen && appContainer) {
-            loadingScreen.style.display = 'none';
-            appContainer.style.display = 'flex';
-        }
-    }, 2000);
+        handleInitializationError(error);
+    }
 }
 
-// FIXED: Define startFactRotation function BEFORE it's called
+// FIXED: Show app container and hide loading screen properly
+async function showAppContainer() {
+    const loadingScreen = document.getElementById('loading-screen');
+    const appContainer = document.getElementById('app-container');
+
+    if (!appContainer) {
+        throw new Error('App container not found');
+    }
+
+    console.log('Showing app container...');
+
+    // FIXED: Show app container first to get dimensions
+    appContainer.style.display = 'flex';
+    appContainer.style.visibility = 'visible';
+    appContainer.style.opacity = '0';
+
+    // Wait for a frame to ensure layout is calculated
+    await new Promise(resolve => requestAnimationFrame(resolve));
+
+    // Verify container has dimensions
+    const container = document.getElementById('canvas-container');
+    if (container) {
+        const width = container.clientWidth;
+        const height = container.clientHeight;
+        console.log(`Container dimensions: ${width}x${height}`);
+
+        if (width === 0 || height === 0) {
+            // Force dimensions if still zero
+            container.style.width = '100%';
+            container.style.height = '100%';
+            container.style.minHeight = '400px';
+
+            // Wait another frame
+            await new Promise(resolve => requestAnimationFrame(resolve));
+        }
+    }
+}
+
+// FIXED: Complete loading process
+function completeLoading() {
+    const loadingScreen = document.getElementById('loading-screen');
+    const appContainer = document.getElementById('app-container');
+
+    if (window.LoadingManager) {
+        window.LoadingManager.complete();
+    } else {
+        // Manual loading completion
+        if (loadingScreen) {
+            loadingScreen.style.transition = 'opacity 0.8s ease-out';
+            loadingScreen.style.opacity = '0';
+
+            setTimeout(() => {
+                loadingScreen.style.display = 'none';
+            }, 800);
+        }
+
+        if (appContainer) {
+            appContainer.style.transition = 'opacity 0.6s ease-in';
+            setTimeout(() => {
+                appContainer.style.opacity = '1';
+            }, 200);
+        }
+    }
+}
+
+// FIXED: Setup features after successful initialization
+function setupPostInitializationFeatures() {
+    console.log('Setting up post-initialization features...');
+
+    // Show info cards after a delay
+    setTimeout(() => {
+        const infoCards = document.getElementById('info-cards');
+        if (infoCards) {
+            infoCards.classList.remove('hidden');
+            console.log('Info cards displayed');
+        }
+
+        // Update interaction status
+        const interactionStatus = document.getElementById('interaction-status');
+        if (interactionStatus) {
+            interactionStatus.textContent = 'Active';
+            interactionStatus.style.color = '#10b981';
+        }
+    }, 1000);
+
+    // Start rotating facts
+    startFactRotation();
+
+    // Setup event handlers
+    setupStage4EventHandlers();
+
+    console.log('Post-initialization features setup complete');
+}
+
+// FIXED: Better error handling
+function handleInitializationError(error) {
+    console.error('Initialization error details:', error);
+
+    // Show error message
+    if (window.NotificationSystem) {
+        window.NotificationSystem.showError('Failed to initialize 3D environment. Please refresh the page.');
+    }
+
+    // Force show app anyway for debugging
+    const loadingScreen = document.getElementById('loading-screen');
+    const appContainer = document.getElementById('app-container');
+
+    if (loadingScreen && appContainer) {
+        loadingScreen.style.display = 'none';
+        appContainer.style.display = 'flex';
+        appContainer.style.visibility = 'visible';
+        appContainer.style.opacity = '1';
+
+        // Show error in the app
+        const container = document.getElementById('canvas-container');
+        if (container) {
+            container.innerHTML = `
+                <div style="display: flex; align-items: center; justify-content: center; height: 100%; color: white; text-align: center; padding: 2rem;">
+                    <div>
+                        <h2>🚫 Initialization Failed</h2>
+                        <p>Error: ${error.message}</p>
+                        <p>Please refresh the page to try again.</p>
+                        <button onclick="window.location.reload()" style="background: #4a9eff; color: white; border: none; padding: 0.5rem 1rem; border-radius: 4px; cursor: pointer; margin-top: 1rem;">
+                            Refresh Page
+                        </button>
+                    </div>
+                </div>
+            `;
+        }
+    }
+
+    console.log('Error handling complete - app container shown');
+}
+
+// Start the initialization process immediately
+initializeSolarSystemApp();
+
+// Define helper functions
+
 function startFactRotation() {
     const facts = document.querySelectorAll('.fact');
     if (facts.length === 0) {
@@ -376,26 +480,17 @@ function startFactRotation() {
     }
 
     let currentIndex = 0;
+    console.log(`Starting fact rotation with ${facts.length} facts`);
 
-    // Start rotation
     const rotateInterval = setInterval(() => {
-        // Remove active class from current fact
         facts[currentIndex].classList.remove('active');
-
-        // Move to next fact
         currentIndex = (currentIndex + 1) % facts.length;
-
-        // Add active class to new fact
         facts[currentIndex].classList.add('active');
-    }, 7000); // Change every 7 seconds
+    }, 7000);
 
-    console.log(`Started fact rotation with ${facts.length} facts`);
-
-    // Return interval ID so it can be cleared if needed
     return rotateInterval;
 }
 
-// FIXED: Stage 4 event handlers - Complete working version
 function setupStage4EventHandlers() {
     console.log('Setting up Stage 4 event handlers...');
 
@@ -403,33 +498,28 @@ function setupStage4EventHandlers() {
     const screenshotBtn = document.getElementById('screenshot-btn');
     if (screenshotBtn) {
         screenshotBtn.addEventListener('click', () => {
-            if (window.solarSystemApp) {
+            if (window.solarSystemApp && window.solarSystemApp.takeScreenshot) {
                 window.solarSystemApp.takeScreenshot();
             }
         });
     }
 
-    // FIXED: Toggle labels button with proper integration
+    // Toggle labels button
     const toggleLabelsBtn = document.getElementById('toggle-labels');
     if (toggleLabelsBtn) {
         toggleLabelsBtn.addEventListener('click', () => {
             if (window.solarSystemApp && window.solarSystemApp.planetLabels) {
-                // Use the planet labels system toggle method
                 const newState = window.solarSystemApp.planetLabels.toggle();
 
-                // Update control panel checkbox to match
                 if (window.ControlPanel && window.ControlPanel.setFeature) {
                     window.ControlPanel.setFeature('labels', newState);
                 }
 
-                // Update button appearance
                 updateToggleButtonState(toggleLabelsBtn, newState);
 
-                // Show notification
                 if (window.NotificationSystem) {
                     window.NotificationSystem.showInfo(
-                        `🏷️ Planet Labels ${newState ? 'Enabled' : 'Disabled'}`,
-                        1500
+                        `🏷️ Planet Labels ${newState ? 'Enabled' : 'Disabled'}`, 1500
                     );
                 }
             }
@@ -446,7 +536,15 @@ function setupStage4EventHandlers() {
         });
     }
 
-    // ZOOM CONTROLS - Fixed to prevent duplicate notifications
+    // Setup zoom and view controls
+    setupZoomControls();
+    setupViewControls();
+    setupPlanetInteractionHandlers();
+
+    console.log('Stage 4 event handlers setup complete');
+}
+
+function setupZoomControls() {
     const zoomInBtn = document.getElementById('zoom-in');
     const zoomOutBtn = document.getElementById('zoom-out');
     const zoomResetBtn = document.getElementById('zoom-reset');
@@ -490,8 +588,9 @@ function setupStage4EventHandlers() {
             }
         });
     }
+}
 
-    // VIEW CONTROLS
+function setupViewControls() {
     const viewTopBtn = document.getElementById('view-top');
     const viewSideBtn = document.getElementById('view-side');
     const viewAngledBtn = document.getElementById('view-angled');
@@ -537,17 +636,16 @@ function setupStage4EventHandlers() {
             }
         });
     }
+}
 
-    // FIXED: Control panel checkbox integration
-    // Listen for checkbox changes from the control panel
+function setupPlanetInteractionHandlers() {
+    // Control panel integration
     document.addEventListener('toggleFeature', (event) => {
         const { feature, enabled } = event.detail;
 
         if (feature === 'labels' && window.solarSystemApp && window.solarSystemApp.planetLabels) {
-            // Update the planet labels system when checkbox changes
             window.solarSystemApp.planetLabels.setVisible(enabled);
 
-            // Update toggle button appearance
             const toggleLabelsBtn = document.getElementById('toggle-labels');
             if (toggleLabelsBtn) {
                 updateToggleButtonState(toggleLabelsBtn, enabled);
@@ -555,18 +653,16 @@ function setupStage4EventHandlers() {
         }
     });
 
-    // Planet selection event handler
+    // Planet selection events
     document.addEventListener('planetSelected', (event) => {
         const planetData = event.detail.planet;
 
-        // Update interaction status
         const interactionStatus = document.getElementById('interaction-status');
         if (interactionStatus) {
             interactionStatus.textContent = planetData.name;
             interactionStatus.style.color = '#4a9eff';
         }
 
-        // Update total moons if planet has moon data
         if (planetData.moon_count !== undefined) {
             const totalMoons = document.getElementById('total-moons');
             if (totalMoons) {
@@ -575,7 +671,6 @@ function setupStage4EventHandlers() {
         }
     });
 
-    // Planet deselection event handler
     document.addEventListener('planetDeselected', () => {
         const interactionStatus = document.getElementById('interaction-status');
         if (interactionStatus) {
@@ -585,7 +680,7 @@ function setupStage4EventHandlers() {
     });
 }
 
-// Helper function to update view button states
+// Helper functions
 function updateViewButtons(activeButton) {
     const viewBtns = document.querySelectorAll('.view-btn');
     viewBtns.forEach(btn => btn.classList.remove('active'));
@@ -594,7 +689,6 @@ function updateViewButtons(activeButton) {
     }
 }
 
-// Helper function to update toggle button appearance
 function updateToggleButtonState(button, enabled) {
     if (enabled) {
         button.style.background = 'rgba(74, 158, 255, 0.2)';
@@ -607,14 +701,13 @@ function updateToggleButtonState(button, enabled) {
     }
 }
 
-// Handle window resize
+// Global event handlers
 window.addEventListener('resize', () => {
     if (window.solarSystemApp && window.solarSystemApp.handleResize) {
         window.solarSystemApp.handleResize();
     }
 });
 
-// Handle visibility change
 document.addEventListener('visibilitychange', () => {
     if (window.solarSystemApp && window.solarSystemApp.handleVisibilityChange) {
         window.solarSystemApp.handleVisibilityChange(document.hidden);
@@ -626,10 +719,7 @@ document.addEventListener('keydown', (event) => {
     if (window.solarSystemApp && window.solarSystemApp.handleKeyPress) {
         window.solarSystemApp.handleKeyPress(event);
     }
-});
 
-// FIXED: Additional keyboard shortcuts including labels toggle
-document.addEventListener('keydown', (event) => {
     switch (event.code) {
         case 'KeyI':
             if (window.solarSystemApp && window.solarSystemApp.interactionManager) {
@@ -645,7 +735,6 @@ document.addEventListener('keydown', (event) => {
 
         case 'KeyL':
             event.preventDefault();
-            // FIXED: Use the toggle labels button functionality
             const toggleLabelsBtn = document.getElementById('toggle-labels');
             if (toggleLabelsBtn) {
                 toggleLabelsBtn.click();
@@ -663,4 +752,6 @@ document.addEventListener('keydown', (event) => {
             break;
     }
 });
+
+console.log('Fixed initialization script loaded - no freeze version');
 {% endblock %}

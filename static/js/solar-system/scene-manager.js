@@ -1,5 +1,5 @@
 // static/js/solar-system/scene-manager.js
-// Core Three.js scene management with optimized rendering and performance monitoring
+// FIXED: Core Three.js scene management with proper initialization timing
 
 window.SceneManager = (function() {
     'use strict';
@@ -56,25 +56,53 @@ window.SceneManager = (function() {
 
             // Event listeners storage for cleanup
             this.eventListeners = [];
+
+            // FIXED: Add initialization state tracking
+            this.isInitialized = false;
+            this.initializationPromise = null;
         }
 
         /**
-         * Initialize the Three.js scene
+         * FIXED: Initialize the Three.js scene with proper timing
          * @returns {Promise<boolean>} Success status
          */
         async init() {
+            // FIXED: Return existing promise if already initializing
+            if (this.initializationPromise) {
+                return this.initializationPromise;
+            }
+
+            this.initializationPromise = this._performInitialization();
+            return this.initializationPromise;
+        }
+
+        /**
+         * FIXED: Actual initialization logic with proper DOM waiting
+         */
+        async _performInitialization() {
             try {
-                // Get container element
+                // FIXED: Wait for DOM to be fully ready and container to have dimensions
+                await this.waitForContainer();
+
+                // Get container element with validation
                 this.container = document.getElementById(this.options.containerId);
                 if (!this.container) {
                     throw new Error(`Container element '${this.options.containerId}' not found`);
                 }
 
-                // Initialize Three.js components
+                // FIXED: Ensure container has dimensions before proceeding
+                await this.ensureContainerDimensions();
+
+                // Initialize Three.js components in correct order
                 await this.initRenderer();
                 this.initScene();
                 this.initCamera();
                 this.setupEventListeners();
+
+                // FIXED: Force initial size update after everything is created
+                this.updateSize();
+
+                this.isInitialized = true;
 
                 if (window.Helpers) {
                     window.Helpers.log('SceneManager initialized successfully', 'debug');
@@ -85,12 +113,75 @@ window.SceneManager = (function() {
                 if (window.Helpers) {
                     window.Helpers.handleError(error, 'SceneManager.init');
                 }
-                return false;
+                throw error;
             }
         }
 
         /**
-         * Initialize WebGL renderer with optimizations
+         * FIXED: Wait for container to be available (with timeout to prevent freeze)
+         */
+        async waitForContainer() {
+            return new Promise((resolve) => {
+                let attempts = 0;
+                const maxAttempts = 100; // Prevent infinite waiting
+
+                const checkContainer = () => {
+                    const container = document.getElementById(this.options.containerId);
+                    attempts++;
+
+                    if (container) {
+                        // Container exists, that's enough - don't wait for dimensions
+                        console.log(`Container found after ${attempts} attempts`);
+                        resolve();
+                    } else if (attempts >= maxAttempts) {
+                        console.warn('Container check timeout, proceeding anyway');
+                        resolve();
+                    } else {
+                        requestAnimationFrame(checkContainer);
+                    }
+                };
+
+                checkContainer();
+            });
+        }
+
+        /**
+         * FIXED: Ensure container has proper dimensions (with fallbacks)
+         */
+        async ensureContainerDimensions() {
+            const container = this.container;
+
+            // FIXED: Get dimensions or use fallback
+            let width = container.clientWidth;
+            let height = container.clientHeight;
+
+            // If container has no dimensions, force them
+            if (width === 0 || height === 0) {
+                console.warn('Container has no dimensions, using viewport fallback');
+
+                // Use viewport dimensions as fallback
+                width = window.innerWidth;
+                height = window.innerHeight - 80; // Account for header
+
+                // Apply dimensions to container
+                container.style.width = width + 'px';
+                container.style.height = height + 'px';
+
+                // Wait a frame for CSS to apply
+                await new Promise(resolve => requestAnimationFrame(resolve));
+
+                // Re-read dimensions
+                width = container.clientWidth || width;
+                height = container.clientHeight || height;
+            }
+
+            if (window.Helpers) {
+                window.Helpers.log(`Container dimensions ensured: ${width}x${height}`, 'debug');
+            }
+        }
+
+        /**
+         * FIXED: Initialize WebGL renderer with proper container dimensions
          */
         async initRenderer() {
             // Get or create canvas
@@ -107,7 +198,15 @@ window.SceneManager = (function() {
                 throw new Error('WebGL is not supported in this browser');
             }
 
-            // Create renderer
+            // FIXED: Get actual container dimensions for renderer
+            const width = this.container.clientWidth;
+            const height = this.container.clientHeight;
+
+            if (width === 0 || height === 0) {
+                throw new Error(`Invalid container dimensions: ${width}x${height}`);
+            }
+
+            // Create renderer with proper dimensions
             this.renderer = new THREE.WebGLRenderer({
                 canvas: this.canvas,
                 antialias: this.options.antialias,
@@ -121,11 +220,12 @@ window.SceneManager = (function() {
             // Configure renderer
             this.configureRenderer();
 
-            // Set initial size
-            this.updateSize();
+            // FIXED: Set size immediately with actual container dimensions
+            this.renderer.setSize(width, height, false);
+            this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 
             if (window.Helpers) {
-                window.Helpers.log(`WebGL Renderer initialized - Version: ${this.renderer.capabilities.glVersion}`, 'debug');
+                window.Helpers.log(`WebGL Renderer initialized - Size: ${width}x${height}, Version: ${this.renderer.capabilities.glVersion}`, 'debug');
             }
         }
 
@@ -175,14 +275,17 @@ window.SceneManager = (function() {
         }
 
         /**
-         * Initialize the camera with optimal settings for solar system viewing
+         * FIXED: Initialize the camera with proper aspect ratio
          */
         initCamera() {
-            const aspect = this.container.clientWidth / this.container.clientHeight;
+            // FIXED: Use actual container dimensions for aspect ratio
+            const width = this.container.clientWidth;
+            const height = this.container.clientHeight;
+            const aspect = width / height;
 
             this.camera = new THREE.PerspectiveCamera(
                 45,     // Field of view
-                aspect, // Aspect ratio
+                aspect, // Aspect ratio from actual container
                 0.1,    // Near clipping plane
                 10000   // Far clipping plane
             );
@@ -192,7 +295,7 @@ window.SceneManager = (function() {
             this.camera.lookAt(0, 0, 0);
 
             if (window.Helpers) {
-                window.Helpers.log('Camera initialized', 'debug');
+                window.Helpers.log(`Camera initialized - Aspect: ${aspect.toFixed(2)}, FOV: 45°`, 'debug');
             }
         }
 
@@ -200,11 +303,8 @@ window.SceneManager = (function() {
          * Setup event listeners for responsive behavior
          */
         setupEventListeners() {
-            // Window resize handler
-            const resizeHandler = window.Helpers?.Performance?.debounce(() => {
-                this.needsResize = true;
-            }, 100) || (() => this.needsResize = true);
-
+            // FIXED: Improved resize handler with debouncing
+            const resizeHandler = this.createDebouncedResizeHandler();
             window.addEventListener('resize', resizeHandler);
             this.eventListeners.push(() => window.removeEventListener('resize', resizeHandler));
 
@@ -225,6 +325,22 @@ window.SceneManager = (function() {
             if (window.SolarSystemConfig?.debug) {
                 this.setupPerformanceMonitoring();
             }
+        }
+
+        /**
+         * FIXED: Create debounced resize handler
+         */
+        createDebouncedResizeHandler() {
+            let resizeTimeout;
+
+            return () => {
+                clearTimeout(resizeTimeout);
+                resizeTimeout = setTimeout(() => {
+                    this.needsResize = true;
+                    // FIXED: Force immediate resize for critical dimension changes
+                    this.updateSize();
+                }, 100);
+            };
         }
 
         /**
@@ -273,7 +389,7 @@ window.SceneManager = (function() {
         }
 
         /**
-         * Update scene size when container resizes
+         * FIXED: Update scene size with proper validation
          */
         updateSize() {
             if (!this.container || !this.camera || !this.renderer) return;
@@ -281,12 +397,18 @@ window.SceneManager = (function() {
             const width = this.container.clientWidth;
             const height = this.container.clientHeight;
 
+            // FIXED: Validate dimensions before updating
+            if (width <= 0 || height <= 0) {
+                console.warn(`Invalid dimensions for resize: ${width}x${height}`);
+                return;
+            }
+
             // Update camera
             this.camera.aspect = width / height;
             this.camera.updateProjectionMatrix();
 
             // Update renderer
-            this.renderer.setSize(width, height);
+            this.renderer.setSize(width, height, false);
 
             // Reset resize flag
             this.needsResize = false;
@@ -294,13 +416,26 @@ window.SceneManager = (function() {
             if (window.Helpers) {
                 window.Helpers.log(`Scene resized to ${width}x${height}`, 'debug');
             }
+
+            // FIXED: Notify other systems of resize
+            this.notifyResize(width, height);
+        }
+
+        /**
+         * FIXED: Notify other systems of resize
+         */
+        notifyResize(width, height) {
+            // Dispatch custom resize event for other systems
+            document.dispatchEvent(new CustomEvent('sceneResize', {
+                detail: { width, height }
+            }));
         }
 
         /**
          * Main render loop
          */
         render() {
-            if (!this.isAnimating) return;
+            if (!this.isAnimating || !this.isInitialized) return;
 
             // Handle resize if needed
             if (this.needsResize) {
@@ -495,10 +630,11 @@ window.SceneManager = (function() {
         getStats() {
             return {
                 ...this.stats,
-                objects: this.scene.children.length,
+                objects: this.scene ? this.scene.children.length : 0,
                 quality: this.quality,
                 isAnimating: this.isAnimating,
-                deltaTime: this.deltaTime
+                deltaTime: this.deltaTime,
+                isInitialized: this.isInitialized
             };
         }
 
@@ -546,6 +682,16 @@ window.SceneManager = (function() {
         }
 
         /**
+         * FIXED: Force update method for external triggers
+         */
+        forceUpdate() {
+            if (this.isInitialized) {
+                this.updateSize();
+                this.render();
+            }
+        }
+
+        /**
          * Dispose of all resources and cleanup
          */
         dispose() {
@@ -557,8 +703,10 @@ window.SceneManager = (function() {
             this.eventListeners = [];
 
             // Dispose of scene objects
-            while (this.scene.children.length > 0) {
-                this.removeObject(this.scene.children[0]);
+            if (this.scene) {
+                while (this.scene.children.length > 0) {
+                    this.removeObject(this.scene.children[0]);
+                }
             }
 
             // Dispose of renderer
@@ -573,6 +721,7 @@ window.SceneManager = (function() {
             this.renderer = null;
             this.canvas = null;
             this.container = null;
+            this.isInitialized = false;
 
             if (window.Helpers) {
                 window.Helpers.log('SceneManager disposed', 'debug');
@@ -587,6 +736,7 @@ window.SceneManager = (function() {
         get Container() { return this.container; }
         get DeltaTime() { return this.deltaTime; }
         get IsAnimating() { return this.isAnimating; }
+        get IsInitialized() { return this.isInitialized; }
     }
 
     // Public API
@@ -605,4 +755,4 @@ if (typeof module !== 'undefined' && module.exports) {
     module.exports = window.SceneManager;
 }
 
-console.log('SceneManager module loaded successfully');
+console.log('FIXED SceneManager module loaded successfully');

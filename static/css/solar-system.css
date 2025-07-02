@@ -877,3 +877,211 @@
     position: relative;
     z-index: 1;
 }
+
+/* FIXED: Force hardware acceleration for smooth rendering */
+.canvas-container,
+.solar-system-canvas {
+    transform: translateZ(0);
+    will-change: transform;
+    backface-visibility: hidden;
+}
+
+/* FIXED: Prevent layout shifts during initialization */
+.canvas-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+    z-index: var(--z-overlay);
+    /* FIXED: Don't interfere with canvas sizing */
+    overflow: hidden;
+}
+
+/* FIXED: Ensure modals don't interfere with layout */
+.info-panel,
+.modal {
+    position: fixed;
+    /* FIXED: Use fixed positioning to avoid layout interference */
+    z-index: var(--z-modal);
+}
+
+/* FIXED: Ensure containers have proper dimensions from the start */
+.app-container {
+    height: 100vh;
+    width: 100vw;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    /* FIXED: Ensure proper box-sizing */
+    box-sizing: border-box;
+}
+
+.main-content {
+    flex: 1;
+    position: relative;
+    overflow: hidden;
+    /* FIXED: Ensure proper dimensions */
+    width: 100%;
+    height: 100%;
+    min-height: 0; /* Important for flex children */
+}
+
+/* FIXED: Canvas container dimensions */
+.canvas-container {
+    width: 100%;
+    height: 100%;
+    position: relative;
+    overflow: hidden;
+    /* FIXED: Ensure proper box-sizing and dimensions */
+    box-sizing: border-box;
+    min-width: 320px;  /* Minimum width */
+    min-height: 240px; /* Minimum height */
+}
+
+/* FIXED: Canvas element dimensions */
+.solar-system-canvas {
+    width: 100% !important;
+    height: 100% !important;
+    display: block;
+    cursor: grab;
+    /* FIXED: Prevent dimension issues */
+    max-width: 100%;
+    max-height: 100%;
+    object-fit: contain;
+}
+
+.solar-system-canvas:active {
+    cursor: grabbing;
+}
+
+.solar-system-canvas:focus {
+    outline: none;
+}
+
+/* FIXED: Ensure loading screen doesn't interfere with layout calculations */
+.loading-screen {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    background: var(--gradient-space);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: var(--z-loading);
+    opacity: 1;
+    transition: opacity var(--transition-slow);
+    /* FIXED: Don't affect layout */
+    pointer-events: auto;
+}
+
+.loading-screen.fade-out {
+    opacity: 0;
+    pointer-events: none;
+}
+
+/* FIXED: App container should be visible but transparent initially */
+#app-container {
+    /* FIXED: Don't hide completely - just make transparent */
+    display: flex !important;
+    visibility: visible !important;
+    opacity: 0;
+    transition: opacity 0.6s ease;
+}
+
+/* FIXED: Show app container when ready */
+#app-container.ready,
+#app-container[style*="opacity: 1"] {
+    opacity: 1;
+}
+
+/* FIXED: Header dimensions */
+.app-header {
+    background: rgba(26, 26, 46, 0.9);
+    backdrop-filter: blur(10px);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    padding: var(--spacing-sm) var(--spacing-lg);
+    z-index: var(--z-content);
+    /* FIXED: Ensure header doesn't interfere with main content calculations */
+    flex-shrink: 0;
+    height: auto;
+    min-height: 60px;
+}
+
+/* FIXED: Control panel positioning */
+.control-panel {
+    position: fixed;
+    top: 80px;
+    right: 20px;
+    width: 320px;
+    max-height: calc(100vh - 100px);
+    /* FIXED: Ensure control panel doesn't interfere with canvas calculations */
+    pointer-events: auto;
+    z-index: var(--z-content);
+}
+
+/* FIXED: Responsive adjustments */
+@media (max-width: 768px) {
+    .canvas-container {
+        min-width: 280px;
+        min-height: 200px;
+    }
+
+    .control-panel {
+        width: 100%;
+        max-width: 320px;
+        top: auto;
+        bottom: 0;
+        right: 0;
+        left: 0;
+        border-radius: 16px 16px 0 0;
+        max-height: 50vh;
+    }
+}
+
+/* FIXED: Force hardware acceleration for smooth rendering */
+.canvas-container,
+.solar-system-canvas {
+    transform: translateZ(0);
+    will-change: transform;
+    backface-visibility: hidden;
+}
+
+/* FIXED: Prevent layout shifts during initialization */
+.canvas-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+    z-index: var(--z-overlay);
+    /* FIXED: Don't interfere with canvas sizing */
+    overflow: hidden;
+}
+
+/* FIXED: Ensure modals don't interfere with layout */
+.info-panel,
+.modal {
+    position: fixed;
+    /* FIXED: Use fixed positioning to avoid layout interference */
+    z-index: var(--z-modal);
+}
+
+/* FIXED: Development helper - uncomment to debug dimensions */
+/*
+.canvas-container {
+    border: 2px solid red !important;
+}
+
+.solar-system-canvas {
+    border: 2px solid blue !important;
+}
+
+.main-content {
+    border: 2px solid green !important;
+}
+*/
