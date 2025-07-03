@@ -1,13 +1,13 @@
 // static/js/ui/control-panel.js
-// Enhanced control panel with full functionality
+// Enhanced control panel with speed 0 instead of pause functionality
 
 window.ControlPanel = (function() {
     'use strict';
 
     let isCollapsed = false;
     let controls = {};
-    let isPlaying = true;
     let currentSpeed = 1.0;
+    let previousSpeed = 1.0; // Store previous speed for "resume"
 
     function initializeControls() {
         // Get control elements
@@ -92,7 +92,7 @@ window.ControlPanel = (function() {
             });
         });
 
-        // Play/pause button
+        // MODIFIED: Play/pause button now uses speed 0 instead of pause
         if (controls.playPauseBtn) {
             controls.playPauseBtn.addEventListener('click', togglePlayPause);
         }
@@ -159,6 +159,11 @@ window.ControlPanel = (function() {
     }
 
     function setSpeed(speed) {
+        // Store previous speed if current speed is not 0
+        if (currentSpeed !== 0) {
+            previousSpeed = currentSpeed;
+        }
+
         currentSpeed = speed;
 
         if (controls.speedValue) {
@@ -166,11 +171,18 @@ window.ControlPanel = (function() {
         }
 
         updateSpeedButtons(speed);
+        updatePlayPauseButton(speed);
+
+        // Debug log
+        console.log('Setting speed to:', speed, 'Previous speed:', previousSpeed);
 
         // Emit speed change event
-        document.dispatchEvent(new CustomEvent('speedChanged', {
+        const event = new CustomEvent('speedChanged', {
             detail: { speed: speed }
-        }));
+        });
+
+        console.log('Dispatching speedChanged event:', event.detail); // Debug log
+        document.dispatchEvent(event);
     }
 
     function setSpeedFromUI(speed) {
@@ -187,23 +199,40 @@ window.ControlPanel = (function() {
         });
     }
 
-    function togglePlayPause() {
-        isPlaying = !isPlaying;
-
+    // MODIFIED: Update play/pause button based on speed instead of play state
+    function updatePlayPauseButton(speed) {
         const icon = document.getElementById('play-pause-icon');
         const text = document.getElementById('play-pause-text');
 
         if (icon && text) {
+            const isPlaying = speed > 0;
             icon.textContent = isPlaying ? '⏸️' : '▶️';
             text.textContent = isPlaying ? 'Pause' : 'Play';
         }
+    }
 
-        document.dispatchEvent(new CustomEvent('toggleAnimation', {
-            detail: { playing: isPlaying }
-        }));
+    // MODIFIED: Toggle between speed 0 and previous speed instead of pause/play
+    function togglePlayPause() {
+        console.log('togglePlayPause called. Current speed:', currentSpeed, 'Previous speed:', previousSpeed); // Debug log
 
-        if (window.NotificationSystem) {
-            window.NotificationSystem.showInfo(`Animation ${isPlaying ? 'resumed' : 'paused'}`);
+        if (currentSpeed > 0) {
+            // Currently playing - set speed to 0 (pause)
+            previousSpeed = currentSpeed;
+            console.log('Pausing: setting speed to 0, storing previous speed:', previousSpeed); // Debug log
+            setSpeedFromUI(0);
+
+            if (window.NotificationSystem) {
+                window.NotificationSystem.showInfo('Animation paused (speed set to 0)');
+            }
+        } else {
+            // Currently at speed 0 - restore previous speed (play)
+            const resumeSpeed = previousSpeed > 0 ? previousSpeed : 1.0;
+            console.log('Resuming: setting speed to:', resumeSpeed); // Debug log
+            setSpeedFromUI(resumeSpeed);
+
+            if (window.NotificationSystem) {
+                window.NotificationSystem.showInfo(`Animation resumed (speed: ${resumeSpeed.toFixed(1)}x)`);
+            }
         }
     }
 
@@ -212,7 +241,6 @@ window.ControlPanel = (function() {
         document.dispatchEvent(new CustomEvent('focusPlanet', {
             detail: { planet: planetName }
         }));
-
     }
 
     function updateSelectedPlanetButton(selectedButton) {
@@ -232,7 +260,7 @@ window.ControlPanel = (function() {
             setupEventListeners();
 
             if (window.Helpers) {
-                window.Helpers.log('Enhanced Control Panel initialized', 'debug');
+                window.Helpers.log('Enhanced Control Panel with speed-based pause initialized', 'debug');
             }
         },
 
@@ -245,17 +273,23 @@ window.ControlPanel = (function() {
             if (isCollapsed) togglePanel();
         },
 
-        // Animation controls
+        // Animation controls - MODIFIED to use speed instead of play/pause state
         setSpeed: setSpeedFromUI,
         getSpeed: () => currentSpeed,
         togglePlayPause: togglePlayPause,
         pause: () => {
-            if (isPlaying) togglePlayPause();
+            if (currentSpeed > 0) {
+                previousSpeed = currentSpeed;
+                setSpeedFromUI(0);
+            }
         },
         play: () => {
-            if (!isPlaying) togglePlayPause();
+            if (currentSpeed === 0) {
+                const resumeSpeed = previousSpeed > 0 ? previousSpeed : 1.0;
+                setSpeedFromUI(resumeSpeed);
+            }
         },
-        isPlaying: () => isPlaying,
+        isPlaying: () => currentSpeed > 0, // MODIFIED: playing means speed > 0
 
         // Feature toggles
         setFeature: function(feature, enabled) {
@@ -354,12 +388,13 @@ window.ControlPanel = (function() {
             return states;
         },
 
-        // Get current state
+        // Get current state - MODIFIED to reflect speed-based state
         getState: function() {
             return {
                 isCollapsed,
-                isPlaying,
+                isPlaying: currentSpeed > 0, // MODIFIED: based on speed
                 currentSpeed,
+                previousSpeed, // NEW: track previous speed for resume
                 features: {
                     orbits: this.getFeature('orbits'),
                     labels: this.getFeature('labels'),
@@ -368,8 +403,7 @@ window.ControlPanel = (function() {
                 }
             };
         }
-
     };
 })();
 
-console.log('Enhanced ControlPanel module loaded successfully');
+console.log('Enhanced ControlPanel with speed-based pause loaded successfully');

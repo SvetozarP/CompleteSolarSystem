@@ -1,5 +1,5 @@
 // static/js/solar-system/solar-system-app.js
-// Final enhanced Solar System Application with all fixes applied
+// Solar System Application with speed-based animation control (no pause state)
 
 window.SolarSystemApp = class {
     constructor(options = {}) {
@@ -35,8 +35,9 @@ window.SolarSystemApp = class {
         this.planetInstances = new Map();
         this.systemInfo = null;
         this.isInitialized = false;
-        this.animationSpeed = 1.0;
-        this.isAnimating = true;
+
+        // MODIFIED: Remove isAnimating, use speed-based approach
+        this.animationSpeed = 1.0; // Animation continues, but speed can be 0
 
         // Performance monitoring
         this.performanceStats = {
@@ -56,8 +57,6 @@ window.SolarSystemApp = class {
 
     /**
      * Enhanced focus on planet with following capability
-     * @param {string} planetName - Name of planet to focus on
-     * @param {boolean} shouldFollow - Whether to follow the planet (default: true)
      */
     focusOnPlanet(planetName, shouldFollow = true) {
         const planetGroup = this.planetInstances.get(planetName);
@@ -73,14 +72,12 @@ window.SolarSystemApp = class {
         }
 
         if (shouldFollow) {
-            // Use the new following functionality
             this.cameraControls.focusAndFollowPlanet(planetGroup, planetData);
 
             if (window.NotificationSystem) {
                 window.NotificationSystem.showInfo(`📹 Following ${planetName}`);
             }
         } else {
-            // Original behavior - just focus without following
             const planetPosition = planetGroup.position;
             const planetSize = this.planetFactory?.calculateScaledSize(planetData) || 1;
             const viewDistance = Math.max(planetSize * 8, 10);
@@ -92,7 +89,6 @@ window.SolarSystemApp = class {
             }
         }
 
-        // Update UI
         if (window.ControlPanel) {
             window.ControlPanel.updateSelectedPlanet(planetName);
             window.ControlPanel.updateCameraDistance(this.cameraControls.followDistance || 50);
@@ -121,7 +117,7 @@ window.SolarSystemApp = class {
      */
     resetCameraView() {
         if (this.cameraControls) {
-            this.cameraControls.stopFollowing(); // Stop following first
+            this.cameraControls.stopFollowing();
             this.cameraControls.setPosition(0, 30, 80);
             this.cameraControls.lookAt(0, 0, 0);
         }
@@ -145,7 +141,6 @@ window.SolarSystemApp = class {
         if (this.cameraControls.IsFollowing) {
             this.stopFollowingPlanet();
         } else {
-            // Try to follow the last selected planet
             const interactionManager = this.interactionManager;
             if (interactionManager && interactionManager.SelectedPlanet) {
                 this.focusOnPlanet(interactionManager.SelectedPlanet.name, true);
@@ -216,49 +211,42 @@ window.SolarSystemApp = class {
                 window.LoadingManager.updateProgress('Initializing enhanced 3D environment...', 5);
             }
 
-            // Initialize scene manager with advanced settings
             await this.initSceneManager();
 
             if (window.LoadingManager) {
                 window.LoadingManager.updateProgress('Setting up advanced lighting system...', 15);
             }
 
-            // Initialize enhanced lighting system
             await this.initLightingSystem();
 
             if (window.LoadingManager) {
                 window.LoadingManager.updateProgress('Loading high-quality textures...', 25);
             }
 
-            // Initialize planet factory with textures
             await this.initPlanetFactory();
 
             if (window.LoadingManager) {
                 window.LoadingManager.updateProgress('Creating realistic particle systems...', 40);
             }
 
-            // Initialize enhanced particle systems
             await this.initEnhancedParticleSystems();
 
             if (window.LoadingManager) {
                 window.LoadingManager.updateProgress('Loading astronomical data...', 55);
             }
 
-            // Load planet data from Django API
             await this.loadPlanetData();
 
             if (window.LoadingManager) {
                 window.LoadingManager.updateProgress('Creating 3D planets with textures...', 70);
             }
 
-            // Create all planets with advanced materials
             await this.createAllPlanets();
 
             if (window.LoadingManager) {
                 window.LoadingManager.updateProgress('Setting up orbital mechanics...', 80);
             }
 
-            // Initialize orbital mechanics and camera controls
             await this.initOrbitalMechanics();
             await this.initCameraControls();
 
@@ -266,21 +254,18 @@ window.SolarSystemApp = class {
                 window.LoadingManager.updateProgress('Initializing interaction system...', 90);
             }
 
-            // Initialize interaction manager
             await this.initInteractionManager();
-
-            if (window.LoadingManager) {
-                window.LoadingManager.updateProgress('Starting simulation...', 95);
-            }
 
             if (window.LoadingManager) {
                 window.LoadingManager.updateProgress('Setting up planet labels...', 92);
             }
 
-            // Initialize planet labels
             await this.initPlanetLabels();
 
-            // Setup event listeners and start render loop
+            if (window.LoadingManager) {
+                window.LoadingManager.updateProgress('Starting simulation...', 95);
+            }
+
             this.setupEventListeners();
             this.startRenderLoop();
 
@@ -298,7 +283,6 @@ window.SolarSystemApp = class {
                 window.NotificationSystem.showSuccess('Solar System loaded with enhanced visual effects!');
             }
 
-            // Show quality level notification
             if (window.NotificationSystem) {
                 window.NotificationSystem.showInfo(`Quality Level: ${this.options.qualityLevel.toUpperCase()}`);
             }
@@ -335,7 +319,6 @@ window.SolarSystemApp = class {
             throw new Error('Failed to initialize enhanced scene manager');
         }
 
-        // Set quality based on options
         this.sceneManager.setQuality(this.getQualityMultiplier());
 
         if (window.Helpers) {
@@ -372,7 +355,6 @@ window.SolarSystemApp = class {
             this.sceneManager.Renderer
         );
 
-        // Set lighting quality
         this.lightingSystem.setQuality(this.options.qualityLevel);
 
         if (window.Helpers) {
@@ -408,7 +390,6 @@ window.SolarSystemApp = class {
      * Initialize enhanced particle systems
      */
     async initEnhancedParticleSystems() {
-        // Use enhanced particle systems if available, fallback to basic
         if (window.EnhancedParticleSystems) {
             this.particleManager = window.EnhancedParticleSystems.create({
                 enableRealisticStarfield: true,
@@ -418,7 +399,6 @@ window.SolarSystemApp = class {
                 performanceMode: this.options.performanceMode
             });
         } else if (window.ParticleSystems) {
-            // Fallback to basic particle systems
             this.particleManager = window.ParticleSystems.create({
                 enableStarfield: true,
                 enableNebula: this.options.qualityLevel !== 'low',
@@ -444,13 +424,8 @@ window.SolarSystemApp = class {
      */
     async loadPlanetData() {
         try {
-            // Load planet data
             this.planets = await window.ApiClient.getPlanets();
-
-            // Load system information
             this.systemInfo = await window.ApiClient.getSystemInfo();
-
-            // Sort planets by display order
             this.planets.sort((a, b) => a.display_order - b.display_order);
 
             if (window.Helpers) {
@@ -462,7 +437,6 @@ window.SolarSystemApp = class {
                 window.Helpers.log('Failed to load data from API, using enhanced fallback', 'warn');
             }
 
-            // Enhanced fallback data
             this.planets = this.getEnhancedFallbackPlanetData();
             this.systemInfo = this.getFallbackSystemInfo();
         }
@@ -482,22 +456,16 @@ window.SolarSystemApp = class {
                 });
 
                 if (planetGroup) {
-                    // Position planet at scaled orbital distance
                     const distance = this.calculateScaledDistance(planetData);
                     planetGroup.position.set(distance, 0, 0);
 
-                    // Add to scene
                     this.sceneManager.addObject(planetGroup, `${planetData.name}_group`);
-
-                    // Store reference
                     this.planetInstances.set(planetData.name, planetGroup);
 
-                    // Set sun reference for lighting
                     if (planetData.name === 'Sun' && this.lightingSystem) {
                         this.lightingSystem.setSunReference(planetGroup);
                     }
 
-                    // Add planet to lighting system
                     if (this.lightingSystem && planetData.name !== 'Sun') {
                         const planetMesh = planetGroup.getObjectByName(planetData.name);
                         if (planetMesh) {
@@ -530,7 +498,7 @@ window.SolarSystemApp = class {
         }
 
         this.orbitalMechanics = window.OrbitalMechanics.create({
-            timeScale: 20, // Reduced for better visual control
+            timeScale: 20,
             enableEllipticalOrbits: this.options.qualityLevel === 'high',
             enableAxialTilt: true,
             enablePrecession: this.options.qualityLevel === 'high'
@@ -538,7 +506,6 @@ window.SolarSystemApp = class {
 
         this.orbitalMechanics.init(this.sceneManager.Scene);
 
-        // Add all planets to orbital mechanics
         this.planets.forEach(planetData => {
             const planetGroup = this.planetInstances.get(planetData.name);
             if (planetGroup && planetData.name !== 'Sun') {
@@ -575,8 +542,6 @@ window.SolarSystemApp = class {
         });
 
         await this.cameraControls.init();
-
-        // Set initial camera position for good overview
         this.cameraControls.setPosition(0, 30, 80);
         this.cameraControls.lookAt(0, 0, 0);
 
@@ -611,21 +576,36 @@ window.SolarSystemApp = class {
     }
 
     /**
-     * Setup event listeners
+     * Setup event listeners - MODIFIED for speed-based animation
      */
     setupEventListeners() {
-        // Animation control events
-        this.addEventListener('toggleAnimation', (e) => {
-            this.isAnimating = e.detail.playing;
+        // MODIFIED: Speed change events instead of play/pause
+        this.addEventListener('speedChanged', (e) => {
+            console.log('Speed changed event received:', e.detail.speed); // Debug log
+            this.animationSpeed = e.detail.speed;
+            // Update orbital mechanics with new speed
             if (this.orbitalMechanics) {
-                this.orbitalMechanics.setPlaying(this.isAnimating);
+                this.orbitalMechanics.setSpeed(this.animationSpeed);
+            }
+
+            if (window.Helpers) {
+                window.Helpers.log(`Animation speed updated to: ${this.animationSpeed}`, 'debug');
             }
         });
 
-        this.addEventListener('speedChanged', (e) => {
-            this.animationSpeed = e.detail.speed;
+        // DEPRECATED: Keep for backward compatibility but map to speed control
+        this.addEventListener('toggleAnimation', (e) => {
+            console.log('Legacy toggleAnimation event received:', e.detail); // Debug log
+            // Map old play/pause to speed 0/1
+            const newSpeed = e.detail.playing ? (this.animationSpeed > 0 ? this.animationSpeed : 1.0) : 0;
+            this.animationSpeed = newSpeed;
+
             if (this.orbitalMechanics) {
                 this.orbitalMechanics.setSpeed(this.animationSpeed);
+            }
+
+            if (window.Helpers) {
+                window.Helpers.log(`Legacy animation toggle: ${e.detail.playing ? 'play' : 'pause'} → speed: ${newSpeed}`, 'debug');
             }
         });
 
@@ -660,7 +640,7 @@ window.SolarSystemApp = class {
     }
 
     /**
-     * Start the enhanced render loop
+     * Start the enhanced render loop - MODIFIED for continuous animation
      */
     startRenderLoop() {
         let lastTime = 0;
@@ -673,16 +653,14 @@ window.SolarSystemApp = class {
             lastTime = currentTime;
             frameCount++;
 
-            if (this.sceneManager && this.sceneManager.IsAnimating && this.isAnimating) {
-                // Update all systems
+            // MODIFIED: Always render, but use speed for system updates
+            if (this.sceneManager) {
                 this.updateSystems(deltaTime);
 
-                // Update performance stats
                 if (frameCount % 60 === 0) {
                     this.updatePerformanceStats(currentTime);
                 }
 
-                // Render with advanced lighting and post-processing
                 this.render();
             }
         };
@@ -690,45 +668,54 @@ window.SolarSystemApp = class {
         animate(0);
 
         if (window.Helpers) {
-            window.Helpers.log('Enhanced render loop started', 'debug');
+            window.Helpers.log('Enhanced render loop started with speed-based animation', 'debug');
         }
     }
 
     /**
-     * Update all systems
+     * Update all systems - MODIFIED to use speed multiplier
      */
     updateSystems(deltaTime) {
-        // Update particle systems
-        if (this.particleManager) {
-            this.particleManager.update(deltaTime * this.animationSpeed);
+        // Debug log occasionally
+        if (Math.random() < 0.005) { // 0.5% chance each frame
+            console.log('SolarSystemApp.updateSystems - animationSpeed:', this.animationSpeed, 'deltaTime:', deltaTime);
         }
 
-        // Update orbital mechanics
+        // MODIFIED: Apply speed multiplier to all time-based updates
+        const effectiveDeltaTime = deltaTime * this.animationSpeed;
+
+        // Update particle systems (always animate regardless of speed)
+        if (this.particleManager) {
+            this.particleManager.update(deltaTime); // Particles always animate
+        }
+
+        // Update orbital mechanics with speed-adjusted time
         if (this.orbitalMechanics) {
+            // Pass the speed to orbital mechanics via the update method
             this.orbitalMechanics.update(deltaTime, this.animationSpeed);
         }
 
-        // Update planet factory (rotations, animations)
+        // Update planet factory with speed-adjusted time
         if (this.planetFactory) {
-            this.planetFactory.update(deltaTime * this.animationSpeed);
+            this.planetFactory.update(effectiveDeltaTime);
         }
 
-        // Update lighting system
+        // Update lighting system (always animate)
         if (this.lightingSystem) {
             this.lightingSystem.update(deltaTime);
         }
 
-        // Update camera controls
+        // Update camera controls (always responsive)
         if (this.cameraControls) {
             this.cameraControls.update();
         }
 
-        // Update interaction manager
+        // Update interaction manager (always responsive)
         if (this.interactionManager) {
             this.interactionManager.update(deltaTime);
         }
 
-        // Update scene manager
+        // Update scene manager (always render)
         if (this.sceneManager) {
             this.sceneManager.render();
         }
@@ -739,10 +726,8 @@ window.SolarSystemApp = class {
      */
     render() {
         if (this.lightingSystem && this.lightingSystem.BloomEnabled) {
-            // Render with post-processing
             this.lightingSystem.render();
         } else {
-            // Standard render
             this.sceneManager.render();
         }
     }
@@ -759,7 +744,6 @@ window.SolarSystemApp = class {
             };
         }
 
-        // Update UI
         this.updateSimulationTime(currentTime);
         this.updatePerformanceDisplay();
     }
@@ -779,7 +763,6 @@ window.SolarSystemApp = class {
      */
     updatePerformanceDisplay() {
         if (window.SolarSystemConfig?.debug) {
-            // Update debug display
             const fpsElement = document.getElementById('fps-counter');
             if (fpsElement) {
                 fpsElement.textContent = Math.round(this.performanceStats.fps);
@@ -846,7 +829,6 @@ window.SolarSystemApp = class {
                 break;
 
             case 'labels':
-                // FIXED: Use the proper labels system
                 if (this.planetLabels) {
                     this.planetLabels.setVisible(enabled);
                 }
@@ -854,69 +836,24 @@ window.SolarSystemApp = class {
         }
     }
 
-
-    /**
-     * Reset camera to default view
-     */
-    resetCameraView() {
-        if (this.cameraControls) {
-            this.cameraControls.setPosition(0, 30, 80);
-            this.cameraControls.lookAt(0, 0, 0);
-        }
-
-        if (window.ControlPanel) {
-            window.ControlPanel.updateCameraDistance(85.4);
-            window.ControlPanel.updateSelectedPlanet('None');
-        }
-    }
-
-    // /**
-    //  * Focus camera on specific planet
-    //  */
-    // focusOnPlanet(planetName) {
-    //     const planetGroup = this.planetInstances.get(planetName);
-    //     if (!planetGroup || !this.cameraControls) return;
-    //
-    //     const planetPosition = planetGroup.position;
-    //     const planetData = this.planets.find(p => p.name === planetName);
-    //
-    //     if (planetData) {
-    //         // Calculate appropriate viewing distance based on planet size
-    //         const planetSize = this.planetFactory.calculateScaledSize(planetData);
-    //         const viewDistance = Math.max(planetSize * 8, 10);
-    //
-    //         // Smooth camera transition
-    //         this.cameraControls.focusOn(planetPosition, viewDistance);
-    //
-    //         if (window.ControlPanel) {
-    //             window.ControlPanel.updateSelectedPlanet(planetName);
-    //             window.ControlPanel.updateCameraDistance(viewDistance);
-    //         }
-    //     }
-    // }
-
     /**
      * Set quality level
      */
     setQualityLevel(quality) {
         this.options.qualityLevel = quality;
 
-        // Update scene manager quality
         if (this.sceneManager) {
             this.sceneManager.setQuality(this.getQualityMultiplier());
         }
 
-        // Update lighting quality
         if (this.lightingSystem) {
             this.lightingSystem.setQuality(quality);
         }
 
-        // Update planet factory quality
         if (this.planetFactory) {
             this.planetFactory.setQuality(quality);
         }
 
-        // Update particle systems quality
         if (this.particleManager && this.particleManager.setQuality) {
             this.particleManager.setQuality(quality);
         }
@@ -977,7 +914,6 @@ window.SolarSystemApp = class {
      * Calculate scaled distance for planet positioning
      */
     calculateScaledDistance(planetData) {
-        // Use the same scaling as OrbitalMechanics
         const DISTANCE_SCALE_FACTOR = 25;
         const DISTANCE_MULTIPLIERS = {
             'mercury': 2.0,
@@ -989,20 +925,20 @@ window.SolarSystemApp = class {
             'uranus': 1.8,
             'neptune': 1.5,
             'pluto': 1.2,
-            'sun': 0.0  // Sun at center
+            'sun': 0.0
         };
 
         const planetName = planetData.name.toLowerCase();
 
         if (planetName === 'sun') {
-            return 0; // Sun at center
+            return 0;
         }
 
         const multiplier = DISTANCE_MULTIPLIERS[planetName] || 1.0;
 
         return Math.max(
             planetData.distance_from_sun * DISTANCE_SCALE_FACTOR * multiplier,
-            20 // Minimum distance
+            20
         );
     }
 
@@ -1107,8 +1043,10 @@ window.SolarSystemApp = class {
     }
 
     handleVisibilityChange(hidden) {
-        if (this.sceneManager) {
-            this.sceneManager.isAnimating = !hidden;
+        // MODIFIED: Don't change animation state based on visibility
+        // Animation always continues, just potentially at speed 0
+        if (window.Helpers) {
+            window.Helpers.log(`Page visibility changed: ${hidden ? 'hidden' : 'visible'}`, 'debug');
         }
     }
 
@@ -1118,46 +1056,15 @@ window.SolarSystemApp = class {
         }
     }
 
-    // /**
-    //  * Focus camera on specific planet
-    //  */
-    // focusOnPlanet(planetName) {
-    //     const planetGroup = this.planetInstances.get(planetName);
-    //     if (!planetGroup || !this.cameraControls) {
-    //         console.warn(`Planet ${planetName} not found or camera controls not available`);
-    //         return;
-    //     }
-    //
-    //     const planetPosition = planetGroup.position;
-    //     const planetData = this.planets.find(p => p.name === planetName);
-    //
-    //     if (planetData) {
-    //         // Calculate appropriate viewing distance
-    //         const planetSize = this.planetFactory?.calculateScaledSize(planetData) || 1;
-    //         const viewDistance = Math.max(planetSize * 8, 10);
-    //
-    //         // Smooth camera transition
-    //         this.cameraControls.focusOn(planetPosition, viewDistance);
-    //
-    //         if (window.ControlPanel) {
-    //             window.ControlPanel.updateSelectedPlanet(planetName);
-    //             window.ControlPanel.updateCameraDistance(viewDistance);
-    //         }
-    //
-    //         if (window.NotificationSystem) {
-    //             window.NotificationSystem.showInfo(`Focusing on ${planetName}`);
-    //         }
-    //     }
-    // }
-
     /**
-     * Get comprehensive performance stats
+     * Get comprehensive performance stats - MODIFIED for speed-based state
      */
     getPerformanceStats() {
         const stats = {
             isInitialized: this.isInitialized,
-            isAnimating: this.isAnimating,
-            animationSpeed: this.animationSpeed,
+            isAnimating: true, // MODIFIED: Always animating, but speed may be 0
+            animationSpeed: this.animationSpeed, // Current speed (can be 0)
+            isAtZeroSpeed: this.animationSpeed === 0, // NEW: Indicates if "paused"
             qualityLevel: this.options.qualityLevel,
             performanceMode: this.options.performanceMode,
             planetCount: this.planets.length,
@@ -1191,18 +1098,15 @@ window.SolarSystemApp = class {
      * Dispose of all resources
      */
     dispose() {
-        // Stop animation loop
         if (this.animationId) {
             cancelAnimationFrame(this.animationId);
         }
 
-        // Remove event listeners
         this.eventListeners.forEach(({ type, handler }) => {
             document.removeEventListener(type, handler);
         });
         this.eventListeners = [];
 
-        // Dispose of all systems
         if (this.interactionManager) {
             this.interactionManager.dispose();
         }
@@ -1235,7 +1139,6 @@ window.SolarSystemApp = class {
             this.sceneManager.dispose();
         }
 
-        // Clear references
         this.planetInstances.clear();
         this.isInitialized = false;
 
@@ -1244,7 +1147,7 @@ window.SolarSystemApp = class {
         }
     }
 
-    // Public getters
+    // Public getters - MODIFIED for speed-based approach
     get Scene() { return this.sceneManager?.Scene; }
     get Camera() { return this.sceneManager?.Camera; }
     get Renderer() { return this.sceneManager?.Renderer; }
@@ -1253,9 +1156,10 @@ window.SolarSystemApp = class {
     get SystemInfo() { return this.systemInfo; }
     get IsInitialized() { return this.isInitialized; }
     get AnimationSpeed() { return this.animationSpeed; }
-    get IsAnimating() { return this.isAnimating; }
+    get IsAnimating() { return true; } // MODIFIED: Always true, check speed instead
+    get IsAtZeroSpeed() { return this.animationSpeed === 0; } // NEW: Check if "paused"
     get QualityLevel() { return this.options.qualityLevel; }
     get PerformanceMode() { return this.options.performanceMode; }
 };
 
-console.log('Enhanced SolarSystemApp with fixes loaded successfully');
+console.log('Enhanced SolarSystemApp with speed-based animation control loaded successfully');

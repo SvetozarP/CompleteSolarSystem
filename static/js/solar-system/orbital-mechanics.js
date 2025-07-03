@@ -1,5 +1,5 @@
 // static/js/solar-system/orbital-mechanics.js
-// Realistic orbital animation system with accurate relative speeds
+// Orbital animation system with speed-based control (no pause state)
 
 window.OrbitalMechanics = (function() {
     'use strict';
@@ -10,10 +10,8 @@ window.OrbitalMechanics = (function() {
     class OrbitalMechanics {
         constructor(options = {}) {
             this.options = {
-                timeScale: 20,         // Reduced from 100 - Much slower orbital motion
-                pausedTimeScale: 0,    // Time scale when paused
-                realTimeScale: 1,      // Real-time scaling factor
-                enableElliptical: false, // Circular orbits for now
+                timeScale: 20,         // Base time scale (days per second)
+                enableElliptical: false,
                 showOrbitalPaths: true,
                 pathOpacity: 0.3,
                 pathSegments: 128,
@@ -24,52 +22,46 @@ window.OrbitalMechanics = (function() {
             this.orbitalPaths = new Map();
             this.time = 0;
             this.lastUpdateTime = 0;
-            this.isPaused = false;
-            this.currentTimeScale = this.options.timeScale;
+
+            // MODIFIED: Remove isPaused, use currentSpeedMultiplier instead
+            this.currentSpeedMultiplier = 1.0; // Speed multiplier (can be 0)
             this.scene = null;
         }
 
         /**
          * Initialize orbital mechanics system
-         * @param {THREE.Scene} scene - Three.js scene
          */
         init(scene) {
             this.scene = scene;
             this.lastUpdateTime = Date.now();
 
             if (window.Helpers) {
-                window.Helpers.log('Orbital mechanics system initialized', 'debug');
+                window.Helpers.log('Orbital mechanics system initialized with speed-based control', 'debug');
             }
         }
 
         /**
          * Add a planet to orbital animation
-         * @param {THREE.Mesh} planetMesh - Planet mesh
-         * @param {Object} planetData - Planet data from database
          */
         addOrbitingBody(planetMesh, planetData) {
             if (!planetMesh || !planetData) return;
 
             const planetName = planetData.name.toLowerCase();
 
-            // Skip the sun (doesn't orbit)
             if (planetName === 'sun') {
                 return;
             }
 
-            // Calculate orbital parameters
             const orbitalParams = this.calculateOrbitalParameters(planetData);
 
-            // Store orbital body data
             this.orbitingBodies.set(planetName, {
                 mesh: planetMesh,
                 data: planetData,
                 params: orbitalParams,
-                currentAngle: Math.random() * Math.PI * 2, // Random starting position
+                currentAngle: Math.random() * Math.PI * 2,
                 rotationAngle: Math.random() * Math.PI * 2
             });
 
-            // Create orbital path visualization
             if (this.options.showOrbitalPaths) {
                 this.createOrbitalPath(planetName, orbitalParams);
             }
@@ -81,44 +73,34 @@ window.OrbitalMechanics = (function() {
 
         /**
          * Calculate orbital parameters from planet data
-         * @param {Object} planetData - Planet data
-         * @returns {Object} Orbital parameters
          */
         calculateOrbitalParameters(planetData) {
-            // Use the same scaling as PlanetFactory (updated values)
-            const DISTANCE_SCALE_FACTOR = 25; // Updated to match PlanetFactory
+            const DISTANCE_SCALE_FACTOR = 25;
             const DISTANCE_MULTIPLIERS = {
-                'mercury': 2.0,  // Updated to match PlanetFactory
-                'venus': 2.5,    // Updated to match PlanetFactory
-                'earth': 3.0,    // Updated to match PlanetFactory
-                'mars': 4.5,     // Updated to match PlanetFactory - much further from Earth
-                'jupiter': 2.5,  // Updated to match PlanetFactory - much further from Mars
-                'saturn': 2.2,   // Updated to match PlanetFactory
-                'uranus': 1.8,   // Updated to match PlanetFactory
-                'neptune': 1.5,  // Updated to match PlanetFactory
-                'pluto': 1.2     // Updated to match PlanetFactory
+                'mercury': 2.0,
+                'venus': 2.5,
+                'earth': 3.0,
+                'mars': 4.5,
+                'jupiter': 2.5,
+                'saturn': 2.2,
+                'uranus': 1.8,
+                'neptune': 1.5,
+                'pluto': 1.2
             };
 
             const planetName = planetData.name.toLowerCase();
             const multiplier = DISTANCE_MULTIPLIERS[planetName] || 1.0;
 
-            // Calculate orbital radius (same as PlanetFactory distance calculation)
             const orbitalRadius = Math.max(
                 planetData.distance_from_sun * DISTANCE_SCALE_FACTOR * multiplier,
-                20 // Minimum distance
+                20
             );
 
-            // Orbital period in Earth days
             const orbitalPeriod = planetData.orbital_period;
-
-            // Calculate angular velocity (radians per day)
             const angularVelocity = (2 * Math.PI) / orbitalPeriod;
 
-            // Rotation period for planet spin (much slower)
-            const rotationPeriod = Math.abs(planetData.rotation_period) / 24; // Convert hours to days
-            const rotationVelocity = (2 * Math.PI) / rotationPeriod * 0.05; // Much slower rotation (5x slower than before)
-
-            // Handle retrograde rotation
+            const rotationPeriod = Math.abs(planetData.rotation_period) / 24;
+            const rotationVelocity = (2 * Math.PI) / rotationPeriod * 0.05;
             const isRetrograde = planetData.rotation_period < 0;
 
             return {
@@ -127,15 +109,13 @@ window.OrbitalMechanics = (function() {
                 angularVelocity: angularVelocity,
                 rotationVelocity: isRetrograde ? -rotationVelocity : rotationVelocity,
                 eccentricity: planetData.orbital_eccentricity || 0,
-                inclination: 0, // Simplified - no inclination for now
+                inclination: 0,
                 isRetrograde: isRetrograde
             };
         }
 
         /**
          * Create orbital path visualization
-         * @param {string} planetName - Planet name
-         * @param {Object} orbitalParams - Orbital parameters
          */
         createOrbitalPath(planetName, orbitalParams) {
             const geometry = new THREE.RingGeometry(
@@ -152,7 +132,7 @@ window.OrbitalMechanics = (function() {
             });
 
             const orbitalPath = new THREE.Mesh(geometry, material);
-            orbitalPath.rotation.x = Math.PI / 2; // Rotate to lie flat
+            orbitalPath.rotation.x = Math.PI / 2;
             orbitalPath.name = `${planetName}_orbit_path`;
 
             this.orbitalPaths.set(planetName, orbitalPath);
@@ -160,16 +140,14 @@ window.OrbitalMechanics = (function() {
         }
 
         /**
-         * Update orbital positions and rotations
-         * @param {number} deltaTime - Time since last update in seconds
-         * @param {number} speedMultiplier - Animation speed multiplier
+         * MODIFIED: Update orbital positions with speed-based control
          */
         update(deltaTime, speedMultiplier = 1) {
-            if (this.isPaused) return;
+            // MODIFIED: Use speed multiplier instead of pause check
+            this.currentSpeedMultiplier = speedMultiplier;
 
-            // Calculate time progression in simulation days
-            // timeScale is days per second, so deltaTime * timeScale * speedMultiplier = days elapsed
-            const timeProgression = deltaTime * this.currentTimeScale * speedMultiplier;
+            // Calculate time progression - will be 0 if speedMultiplier is 0
+            const timeProgression = deltaTime * this.options.timeScale * this.currentSpeedMultiplier;
             this.time += timeProgression;
 
             // Update each orbiting body
@@ -181,65 +159,53 @@ window.OrbitalMechanics = (function() {
 
         /**
          * Update planet orbital position
-         * @param {Object} body - Orbiting body data
-         * @param {number} timeProgression - Time progression in days
          */
         updatePlanetPosition(body, timeProgression) {
             const { mesh, params } = body;
 
-            // Update orbital angle
             body.currentAngle += params.angularVelocity * timeProgression;
 
-            // Keep angle in reasonable range
             if (body.currentAngle > Math.PI * 2) {
                 body.currentAngle -= Math.PI * 2;
             }
 
-            // Calculate position (circular orbit for now)
             const x = Math.cos(body.currentAngle) * params.radius;
             const z = Math.sin(body.currentAngle) * params.radius;
-            const y = 0; // No inclination for now
+            const y = 0;
 
-            // Update mesh position
             mesh.position.set(x, y, z);
         }
 
         /**
          * Update planet self-rotation
-         * @param {Object} body - Orbiting body data
-         * @param {number} timeProgression - Time progression in days
          */
         updatePlanetRotation(body, timeProgression) {
             const { mesh, params } = body;
 
-            // Update rotation angle
             body.rotationAngle += params.rotationVelocity * timeProgression;
-
-            // Apply rotation to mesh
             mesh.rotation.y = body.rotationAngle;
         }
 
         /**
-         * Play/pause orbital animation
-         * @param {boolean} playing - Animation playing state
+         * MODIFIED: Set speed multiplier instead of play/pause
          */
-        setPlaying(playing) {
-            this.isPaused = !playing;
+        setSpeed(speedMultiplier) {
+            this.currentSpeedMultiplier = speedMultiplier;
 
             if (window.Helpers) {
-                window.Helpers.log(`Orbital animation ${playing ? 'resumed' : 'paused'}`, 'debug');
+                window.Helpers.log(`Orbital animation speed set to ${speedMultiplier}x`, 'debug');
             }
         }
 
         /**
-         * Set animation speed
-         * @param {number} speed - Speed multiplier
+         * DEPRECATED: Kept for compatibility but maps to speed control
          */
-        setSpeed(speed) {
-            this.currentTimeScale = this.options.timeScale * speed;
+        setPlaying(playing) {
+            // Map old play/pause to speed 0/1 for compatibility
+            this.setSpeed(playing ? 1.0 : 0);
 
             if (window.Helpers) {
-                window.Helpers.log(`Orbital animation speed set to ${speed}x`, 'debug');
+                window.Helpers.log(`Orbital animation ${playing ? 'resumed' : 'paused'} (using speed control)`, 'debug');
             }
         }
 
@@ -250,11 +216,9 @@ window.OrbitalMechanics = (function() {
             this.time = 0;
 
             this.orbitingBodies.forEach((body, planetName) => {
-                // Reset to random starting positions
                 body.currentAngle = Math.random() * Math.PI * 2;
                 body.rotationAngle = Math.random() * Math.PI * 2;
 
-                // Update position immediately
                 this.updatePlanetPosition(body, 0);
                 this.updatePlanetRotation(body, 0);
             });
@@ -266,7 +230,6 @@ window.OrbitalMechanics = (function() {
 
         /**
          * Show or hide orbital paths
-         * @param {boolean} visible - Paths visible
          */
         setOrbitalPathsVisible(visible) {
             this.options.showOrbitalPaths = visible;
@@ -282,8 +245,6 @@ window.OrbitalMechanics = (function() {
 
         /**
          * Get planet position by name
-         * @param {string} planetName - Planet name
-         * @returns {THREE.Vector3|null} Planet position
          */
         getPlanetPosition(planetName) {
             const body = this.orbitingBodies.get(planetName.toLowerCase());
@@ -292,8 +253,6 @@ window.OrbitalMechanics = (function() {
 
         /**
          * Get planet orbital data by name
-         * @param {string} planetName - Planet name
-         * @returns {Object|null} Orbital data
          */
         getPlanetOrbitalData(planetName) {
             const body = this.orbitingBodies.get(planetName.toLowerCase());
@@ -311,7 +270,6 @@ window.OrbitalMechanics = (function() {
 
         /**
          * Get all orbital data
-         * @returns {Array} Array of orbital data for all planets
          */
         getAllOrbitalData() {
             const data = [];
@@ -323,7 +281,6 @@ window.OrbitalMechanics = (function() {
 
         /**
          * Get simulation time in days
-         * @returns {number} Simulation time
          */
         getSimulationTime() {
             return this.time;
@@ -331,7 +288,6 @@ window.OrbitalMechanics = (function() {
 
         /**
          * Get simulation time in years
-         * @returns {number} Simulation time in years
          */
         getSimulationTimeYears() {
             return this.time / 365.25;
@@ -339,7 +295,6 @@ window.OrbitalMechanics = (function() {
 
         /**
          * Get formatted simulation time
-         * @returns {string} Formatted time string
          */
         getFormattedTime() {
             const totalDays = Math.floor(this.time);
@@ -349,7 +304,7 @@ window.OrbitalMechanics = (function() {
             if (years > 0) {
                 return `${years}y ${remainingDays}d`;
             } else if (totalDays >= 30) {
-                const months = Math.floor(totalDays / 30.44); // Average days per month
+                const months = Math.floor(totalDays / 30.44);
                 const remainingDaysInMonth = Math.floor(totalDays % 30.44);
                 return `${months}m ${remainingDaysInMonth}d`;
             } else {
@@ -359,9 +314,6 @@ window.OrbitalMechanics = (function() {
 
         /**
          * Calculate relative positions between planets
-         * @param {string} planet1 - First planet name
-         * @param {string} planet2 - Second planet name
-         * @returns {Object|null} Distance and angle data
          */
         getRelativePosition(planet1, planet2) {
             const pos1 = this.getPlanetPosition(planet1);
@@ -382,8 +334,6 @@ window.OrbitalMechanics = (function() {
 
         /**
          * Find the closest planet to a given position
-         * @param {THREE.Vector3} position - Position to check from
-         * @returns {Object|null} Closest planet data
          */
         getClosestPlanet(position) {
             let closestPlanet = null;
@@ -406,7 +356,6 @@ window.OrbitalMechanics = (function() {
 
         /**
          * Set orbital path opacity
-         * @param {number} opacity - Opacity value (0-1)
          */
         setOrbitalPathOpacity(opacity) {
             this.options.pathOpacity = Math.max(0, Math.min(1, opacity));
@@ -417,8 +366,7 @@ window.OrbitalMechanics = (function() {
         }
 
         /**
-         * Get orbital statistics and verification data
-         * @returns {Object} Orbital statistics
+         * MODIFIED: Get orbital statistics with speed-based state
          */
         getStats() {
             const earthData = this.orbitingBodies.get('earth');
@@ -430,29 +378,26 @@ window.OrbitalMechanics = (function() {
                 simulationTime: this.getFormattedTime(),
                 simulationDays: this.time,
                 simulationYears: this.getSimulationTimeYears(),
-                earthCompletedOrbits: earthCompletedOrbits.toFixed(3), // For verification
-                currentTimeScale: this.currentTimeScale,
-                isPaused: this.isPaused,
-                pathsVisible: this.options.showOrbitalPaths
+                earthCompletedOrbits: earthCompletedOrbits.toFixed(3),
+                currentSpeedMultiplier: this.currentSpeedMultiplier, // MODIFIED: Show speed instead of pause state
+                isAtZeroSpeed: this.currentSpeedMultiplier === 0, // NEW: Indicates if effectively "paused"
+                pathsVisible: this.options.showOrbitalPaths,
+                baseTimeScale: this.options.timeScale
             };
         }
 
         /**
          * Enable performance mode
-         * @param {boolean} enabled - Performance mode enabled
          */
         setPerformanceMode(enabled) {
             if (enabled) {
-                // Reduce orbital path segments for better performance
                 this.options.pathSegments = 64;
                 this.setOrbitalPathOpacity(0.1);
             } else {
-                // Restore full quality
                 this.options.pathSegments = 128;
                 this.setOrbitalPathOpacity(0.3);
             }
 
-            // Recreate orbital paths with new settings
             this.recreateOrbitalPaths();
         }
 
@@ -460,7 +405,6 @@ window.OrbitalMechanics = (function() {
          * Recreate orbital paths with current settings
          */
         recreateOrbitalPaths() {
-            // Remove existing paths
             this.orbitalPaths.forEach((path) => {
                 this.scene.remove(path);
                 path.geometry.dispose();
@@ -468,7 +412,6 @@ window.OrbitalMechanics = (function() {
             });
             this.orbitalPaths.clear();
 
-            // Recreate paths if enabled
             if (this.options.showOrbitalPaths) {
                 this.orbitingBodies.forEach((body, planetName) => {
                     this.createOrbitalPath(planetName, body.params);
@@ -478,8 +421,6 @@ window.OrbitalMechanics = (function() {
 
         /**
          * Get planet by name
-         * @param {string} planetName - Planet name
-         * @returns {THREE.Mesh|null} Planet mesh
          */
         getPlanet(planetName) {
             const body = this.orbitingBodies.get(planetName.toLowerCase());
@@ -488,8 +429,6 @@ window.OrbitalMechanics = (function() {
 
         /**
          * Check if planet exists in orbital system
-         * @param {string} planetName - Planet name
-         * @returns {boolean} Planet exists
          */
         hasPlanet(planetName) {
             return this.orbitingBodies.has(planetName.toLowerCase());
@@ -497,24 +436,42 @@ window.OrbitalMechanics = (function() {
 
         /**
          * Get all planet names in orbital system
-         * @returns {Array} Array of planet names
          */
         getPlanetNames() {
             return Array.from(this.orbitingBodies.keys());
         }
 
         /**
+         * Get current speed multiplier
+         */
+        getCurrentSpeed() {
+            return this.currentSpeedMultiplier;
+        }
+
+        /**
+         * Check if animation is effectively paused (speed = 0)
+         */
+        isEffectivelyPaused() {
+            return this.currentSpeedMultiplier === 0;
+        }
+
+        /**
+         * DEPRECATED: Kept for compatibility
+         */
+        get IsPaused() {
+            return this.currentSpeedMultiplier === 0;
+        }
+
+        /**
          * Dispose of orbital mechanics system
          */
         dispose() {
-            // Remove orbital paths from scene
             this.orbitalPaths.forEach((path) => {
                 this.scene.remove(path);
                 if (path.geometry) path.geometry.dispose();
                 if (path.material) path.material.dispose();
             });
 
-            // Clear data structures
             this.orbitingBodies.clear();
             this.orbitalPaths.clear();
 
@@ -526,11 +483,12 @@ window.OrbitalMechanics = (function() {
             }
         }
 
-        // Getters for external access
+        // Getters for external access - MODIFIED for speed-based approach
         get OrbitingBodyCount() { return this.orbitingBodies.size; }
         get SimulationTime() { return this.time; }
-        get IsPaused() { return this.isPaused; }
-        get TimeSpeed() { return this.currentTimeScale / this.options.timeScale; }
+        get CurrentSpeed() { return this.currentSpeedMultiplier; } // NEW
+        get IsAtZeroSpeed() { return this.currentSpeedMultiplier === 0; } // NEW
+        get TimeSpeed() { return this.currentSpeedMultiplier; } // MODIFIED: Return speed multiplier
         get OrbitingBodies() { return this.orbitingBodies; }
     }
 
@@ -545,8 +503,7 @@ window.OrbitalMechanics = (function() {
 
         // Utility functions
         calculateOrbitalVelocity: (radius, centralMass) => {
-            // Simplified orbital velocity calculation
-            const G = 6.67430e-11; // Gravitational constant
+            const G = 6.67430e-11;
             return Math.sqrt(G * centralMass / radius);
         },
 
@@ -554,10 +511,10 @@ window.OrbitalMechanics = (function() {
         radiansToDegrees: (radians) => radians * (180 / Math.PI),
 
         // Constants
-        EARTH_ORBITAL_PERIOD: 365.25, // Earth days
-        AU_TO_KM: 149597870.7, // 1 AU in kilometers
+        EARTH_ORBITAL_PERIOD: 365.25,
+        AU_TO_KM: 149597870.7,
         SECONDS_PER_DAY: 86400
     };
 })();
 
-console.log('OrbitalMechanics module loaded successfully');
+console.log('OrbitalMechanics with speed-based control loaded successfully');
