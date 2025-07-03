@@ -74,9 +74,10 @@ window.SolarSystemApp = class {
         if (shouldFollow) {
             this.cameraControls.focusAndFollowPlanet(planetGroup, planetData);
 
-            if (window.NotificationSystem) {
-                window.NotificationSystem.showInfo(`📹 Following ${planetName}`);
-            }
+            // REMOVED: Duplicate notification - let the event handler in template show it
+            // if (window.NotificationSystem) {
+            //     window.NotificationSystem.showInfo(`📹 Following ${planetName}`);
+            // }
         } else {
             const planetPosition = planetGroup.position;
             const planetSize = this.planetFactory?.calculateScaledSize(planetData) || 1;
@@ -84,9 +85,10 @@ window.SolarSystemApp = class {
 
             this.cameraControls.focusOn(planetPosition, viewDistance);
 
-            if (window.NotificationSystem) {
-                window.NotificationSystem.showInfo(`🎯 Focused on ${planetName}`);
-            }
+            // REMOVED: Duplicate notification - let the event handler in template show it
+            // if (window.NotificationSystem) {
+            //     window.NotificationSystem.showInfo(`🎯 Focused on ${planetName}`);
+            // }
         }
 
         if (window.ControlPanel) {

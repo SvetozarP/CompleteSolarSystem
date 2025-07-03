@@ -732,13 +732,10 @@ function setupUtilityControls() {
         focusSunBtn.addEventListener('click', () => {
             console.log('Focus Sun clicked');
 
-            if (window.solarSystemApp && window.solarSystemApp.focusOnPlanet) {
-                window.solarSystemApp.focusOnPlanet('Sun', false); // Don't follow the Sun
-
-                if (window.NotificationSystem) {
-                    window.NotificationSystem.showInfo('☀️ Focused on Sun', 1500);
-                }
-            }
+            // FIXED: Dispatch event with follow=false for Sun
+            document.dispatchEvent(new CustomEvent('focusPlanet', {
+                detail: { planet: 'Sun', follow: false }
+            }));
         });
     }
 
@@ -829,21 +826,18 @@ function setupPlanetInteractionHandlers() {
         const planetName = event.detail.planet;
 
         if (window.solarSystemApp && window.solarSystemApp.focusOnPlanet) {
-            window.solarSystemApp.focusOnPlanet(planetName, true);
-        }
-    });
+            // Check if we should follow or just focus
+            const shouldFollow = event.detail.follow !== false; // Default to true unless explicitly false
 
-    // Control panel integration
-    document.addEventListener('toggleFeature', function(event) {
-        const feature = event.detail.feature;
-        const enabled = event.detail.enabled;
+            window.solarSystemApp.focusOnPlanet(planetName, shouldFollow);
 
-        if (feature === 'labels' && window.solarSystemApp && window.solarSystemApp.planetLabels) {
-            window.solarSystemApp.planetLabels.setVisible(enabled);
-
-            const toggleLabelsBtn = document.getElementById('toggle-labels');
-            if (toggleLabelsBtn) {
-                updateToggleButtonState(toggleLabelsBtn, enabled);
+            // Show appropriate notification based on action
+            if (window.NotificationSystem) {
+                if (shouldFollow) {
+                    window.NotificationSystem.showInfo(`📹 Following ${planetName}`);
+                } else {
+                    window.NotificationSystem.showInfo(`🎯 Focused on ${planetName}`);
+                }
             }
         }
     });
