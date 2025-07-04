@@ -205,18 +205,30 @@ window.OrbitalMechanics = (function() {
          * URANUS FIX: Keep rings aligned with planet's equator and moons in solar system plane
          */
         fixUranusRingAndMoonAlignment(uranusMesh) {
+            // Uranus rotates on its side with 98° tilt
+            const uranusTilt = THREE.MathUtils.degToRad(98);
+
             // Fix rings: align with planet's tilted equator
             const rings = uranusMesh.getObjectByName('Uranus_rings');
             if (rings) {
-                rings.rotation.z = THREE.MathUtils.degToRad(90);
+                // Rings should be perpendicular to Uranus's rotation axis
+                rings.rotation.x = 0;
+                rings.rotation.y = 0;
+                rings.rotation.z = uranusTilt; // 98° tilt to match planet
+                console.log('Uranus rings aligned with tilted equatorial plane');
             }
 
-            // Fix moons: keep in solar system plane
+            // Fix moons: orbit in the same tilted plane as the rings
             const moonSystem = uranusMesh.getObjectByName('Uranus_moons');
             if (moonSystem) {
-                moonSystem.rotation.set(180, 180, 180);
+                // CRITICAL FIX: Moons should orbit in the same plane as rings, not horizontal
+                // Reset any previous rotations
+                moonSystem.rotation.set(0, 0, 0);
 
-                // Update moon positions to stay in horizontal plane
+                // Apply the same tilt as the planet's equator and rings
+                moonSystem.rotation.z = uranusTilt; // 98° tilt
+
+                // Update moon positions in the tilted orbital plane
                 moonSystem.children.forEach(moon => {
                     if (moon.userData && moon.userData.type === 'moon') {
                         const userData = moon.userData;
@@ -225,13 +237,21 @@ window.OrbitalMechanics = (function() {
                         }
 
                         const radius = userData.orbitalRadius || 10;
+
+                        // Calculate position in the TILTED orbital plane
+                        // This puts moons in the same plane as rings and Uranus's equator
                         const x = Math.cos(userData.orbitalAngle) * radius;
-                        const z = Math.sin(userData.orbitalAngle) * radius;
-                        const y = 0; // Keep in solar system plane
+                        const y = Math.sin(userData.orbitalAngle) * radius;
+                        const z = 0; // Stay in the tilted equatorial plane
 
                         moon.position.set(x, y, z);
+
+                        // Advance the orbital angle for next update
+                        userData.orbitalAngle += userData.orbitalSpeed || 0.01;
                     }
                 });
+
+                console.log('Uranus moons aligned with tilted equatorial plane (same as rings)');
             }
         }
 
