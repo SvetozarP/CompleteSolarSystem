@@ -215,7 +215,7 @@ window.OrbitalMechanics = (function() {
                 rings.rotation.x = 0;
                 rings.rotation.y = 0;
                 rings.rotation.z = uranusTilt; // 98° tilt to match planet
-                console.log('Uranus rings aligned with tilted equatorial plane');
+                //console.log('Uranus rings aligned with tilted equatorial plane');
             }
 
             // Fix moons: orbit in the same tilted plane as the rings
@@ -251,7 +251,7 @@ window.OrbitalMechanics = (function() {
                     }
                 });
 
-                console.log('Uranus moons aligned with tilted equatorial plane (same as rings)');
+                //console.log('Uranus moons aligned with tilted equatorial plane (same as rings)');
             }
         }
 

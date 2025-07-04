@@ -680,7 +680,7 @@ window.SolarSystemApp = class {
     updateSystems(deltaTime) {
         // Debug log occasionally
         if (Math.random() < 0.005) { // 0.5% chance each frame
-            console.log('SolarSystemApp.updateSystems - animationSpeed:', this.animationSpeed, 'deltaTime:', deltaTime);
+            //console.log('SolarSystemApp.updateSystems - animationSpeed:', this.animationSpeed, 'deltaTime:', deltaTime);
         }
 
         // MODIFIED: Apply speed multiplier to all time-based updates
