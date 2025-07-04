@@ -1,11 +1,11 @@
 // static/js/solar-system/orbital-mechanics.js
-// Orbital animation system with speed-based control (no pause state)
+// FIXED: Orbital animation system with proper Venus retrograde and Uranus tilt
 
 window.OrbitalMechanics = (function() {
     'use strict';
 
     /**
-     * Orbital mechanics system for animating planet orbits
+     * Orbital mechanics system for animating planet orbits with correct rotations
      */
     class OrbitalMechanics {
         constructor(options = {}) {
@@ -15,6 +15,7 @@ window.OrbitalMechanics = (function() {
                 showOrbitalPaths: true,
                 pathOpacity: 0.3,
                 pathSegments: 128,
+                enableRealisticRotations: true, // NEW: Enable realistic rotations
                 ...options
             };
 
@@ -23,8 +24,7 @@ window.OrbitalMechanics = (function() {
             this.time = 0;
             this.lastUpdateTime = 0;
 
-            // MODIFIED: Remove isPaused, use currentSpeedMultiplier instead
-            this.currentSpeedMultiplier = 1.0; // Speed multiplier (can be 0)
+            this.currentSpeedMultiplier = 1.0;
             this.scene = null;
         }
 
@@ -36,12 +36,12 @@ window.OrbitalMechanics = (function() {
             this.lastUpdateTime = Date.now();
 
             if (window.Helpers) {
-                window.Helpers.log('Orbital mechanics system initialized with speed-based control', 'debug');
+                window.Helpers.log('Orbital mechanics system initialized with realistic rotations', 'debug');
             }
         }
 
         /**
-         * Add a planet to orbital animation
+         * Add a planet to orbital animation with FIXED rotation parameters
          */
         addOrbitingBody(planetMesh, planetData) {
             if (!planetMesh || !planetData) return;
@@ -59,12 +59,17 @@ window.OrbitalMechanics = (function() {
                 data: planetData,
                 params: orbitalParams,
                 currentAngle: Math.random() * Math.PI * 2,
-                rotationAngle: Math.random() * Math.PI * 2
+                rotationAngle: Math.random() * Math.PI * 2,
+                // NEW: Store initial rotation state for special cases
+                initialRotationApplied: false
             });
 
             if (this.options.showOrbitalPaths) {
                 this.createOrbitalPath(planetName, orbitalParams);
             }
+
+            // FIXED: Apply special rotation setup for Venus and Uranus
+            this.setupSpecialRotations(planetMesh, planetData);
 
             if (window.Helpers) {
                 window.Helpers.log(`Added orbiting body: ${planetData.name} - Period: ${orbitalParams.period.toFixed(1)} days`, 'debug');
@@ -72,7 +77,7 @@ window.OrbitalMechanics = (function() {
         }
 
         /**
-         * Calculate orbital parameters from planet data
+         * FIXED: Calculate orbital parameters with proper rotation handling
          */
         calculateOrbitalParameters(planetData) {
             const DISTANCE_SCALE_FACTOR = 25;
@@ -99,19 +104,125 @@ window.OrbitalMechanics = (function() {
             const orbitalPeriod = planetData.orbital_period;
             const angularVelocity = (2 * Math.PI) / orbitalPeriod;
 
-            const rotationPeriod = Math.abs(planetData.rotation_period) / 24;
-            const rotationVelocity = (2 * Math.PI) / rotationPeriod * 0.05;
-            const isRetrograde = planetData.rotation_period < 0;
+            // FIXED: Proper rotation calculation with special cases
+            const rotationParams = this.calculateRotationParameters(planetData);
 
             return {
                 radius: orbitalRadius,
                 period: orbitalPeriod,
                 angularVelocity: angularVelocity,
-                rotationVelocity: isRetrograde ? -rotationVelocity : rotationVelocity,
+                rotationVelocity: rotationParams.velocity,
+                rotationAxis: rotationParams.axis, // NEW: Rotation axis for tilted planets
+                isRetrograde: rotationParams.isRetrograde,
+                axialTilt: rotationParams.axialTilt, // NEW: Store axial tilt
                 eccentricity: planetData.orbital_eccentricity || 0,
-                inclination: 0,
-                isRetrograde: isRetrograde
+                inclination: 0
             };
+        }
+
+        /**
+         * NEW: Calculate proper rotation parameters for each planet
+         */
+        calculateRotationParameters(planetData) {
+            const planetName = planetData.name.toLowerCase();
+            const rotationPeriod = Math.abs(planetData.rotation_period) / 24; // Convert hours to days
+            const baseRotationVelocity = (2 * Math.PI) / rotationPeriod * 0.05; // Scale for visualization
+
+            // Default parameters
+            let params = {
+                velocity: baseRotationVelocity,
+                axis: new THREE.Vector3(0, 1, 0), // Default Y-axis
+                isRetrograde: planetData.rotation_period < 0,
+                axialTilt: planetData.axial_tilt || 0
+            };
+
+            // FIXED: Special cases for Venus and Uranus
+            switch (planetName) {
+                case 'venus':
+                    // Venus rotates backwards (retrograde) and very slowly
+                    params.isRetrograde = true;
+                    params.velocity = -baseRotationVelocity * 0.1; // Very slow and backwards
+                    params.axialTilt = 177.4; // Nearly upside down
+                    console.log(`🌟 Venus: Retrograde rotation at ${params.velocity.toFixed(4)} rad/update`);
+                    break;
+
+                case 'uranus':
+                    // Uranus rotates on its side (98° tilt)
+                    params.axialTilt = 98; // Extreme tilt - rotates on its side
+                    params.axis = new THREE.Vector3(
+                        Math.sin(THREE.MathUtils.degToRad(98)),
+                        Math.cos(THREE.MathUtils.degToRad(98)),
+                        0
+                    ).normalize();
+                    console.log(`🌟 Uranus: 98° axial tilt, axis:`, params.axis);
+                    break;
+
+                case 'pluto':
+                    // Pluto also has retrograde rotation
+                    params.isRetrograde = true;
+                    params.velocity = -baseRotationVelocity;
+                    params.axialTilt = 122.5;
+                    break;
+
+                default:
+                    // Apply normal axial tilt if available
+                    if (planetData.axial_tilt !== undefined) {
+                        const tiltRad = THREE.MathUtils.degToRad(planetData.axial_tilt);
+                        params.axis = new THREE.Vector3(
+                            Math.sin(tiltRad),
+                            Math.cos(tiltRad),
+                            0
+                        ).normalize();
+                    }
+                    break;
+            }
+
+            return params;
+        }
+
+        /**
+         * NEW: Setup special rotations for Venus and Uranus
+         */
+        setupSpecialRotations(planetMesh, planetData) {
+            const planetName = planetData.name.toLowerCase();
+
+            switch (planetName) {
+                case 'venus':
+                    // Venus: Tilt the planet to reflect its retrograde rotation
+                    planetMesh.rotation.z = THREE.MathUtils.degToRad(177.4);
+                    console.log('🌟 Applied Venus 177.4° tilt');
+                    break;
+
+                case 'uranus':
+                    // Uranus: Tilt the planet 98 degrees so it rotates on its side
+                    planetMesh.rotation.z = THREE.MathUtils.degToRad(98);
+                    console.log('🌟 Applied Uranus 98° side rotation');
+                    break;
+
+                case 'earth':
+                    // Earth: Apply realistic 23.5° axial tilt
+                    planetMesh.rotation.z = THREE.MathUtils.degToRad(23.5);
+                    console.log('🌍 Applied Earth 23.5° axial tilt');
+                    break;
+
+                case 'mars':
+                    // Mars: Similar tilt to Earth
+                    planetMesh.rotation.z = THREE.MathUtils.degToRad(25.2);
+                    console.log('🔴 Applied Mars 25.2° axial tilt');
+                    break;
+
+                case 'saturn':
+                    // Saturn: Notable axial tilt
+                    planetMesh.rotation.z = THREE.MathUtils.degToRad(26.7);
+                    console.log('🪐 Applied Saturn 26.7° axial tilt');
+                    break;
+
+                case 'neptune':
+                    // Neptune: Moderate tilt
+                    planetMesh.rotation.z = THREE.MathUtils.degToRad(28.3);
+                    console.log('🔵 Applied Neptune 28.3° axial tilt');
+                    break;
+            }
         }
 
         /**
@@ -140,13 +251,11 @@ window.OrbitalMechanics = (function() {
         }
 
         /**
-         * MODIFIED: Update orbital positions with speed-based control
+         * FIXED: Update orbital positions with speed-based control
          */
         update(deltaTime, speedMultiplier = 1) {
-            // MODIFIED: Use speed multiplier instead of pause check
             this.currentSpeedMultiplier = speedMultiplier;
 
-            // Calculate time progression - will be 0 if speedMultiplier is 0
             const timeProgression = deltaTime * this.options.timeScale * this.currentSpeedMultiplier;
             this.time += timeProgression;
 
@@ -177,17 +286,42 @@ window.OrbitalMechanics = (function() {
         }
 
         /**
-         * Update planet self-rotation
+         * FIXED: Update planet self-rotation with proper handling of special cases
          */
         updatePlanetRotation(body, timeProgression) {
-            const { mesh, params } = body;
+            const { mesh, params, data } = body;
+            const planetName = data.name.toLowerCase();
 
-            body.rotationAngle += params.rotationVelocity * timeProgression;
-            mesh.rotation.y = body.rotationAngle;
+            // Apply rotation based on the planet's rotation axis and velocity
+            const rotationDelta = params.rotationVelocity * timeProgression;
+
+            switch (planetName) {
+                case 'venus':
+                    // Venus: Rotate around Y-axis but backwards due to retrograde rotation
+                    // The initial tilt is already applied in setupSpecialRotations
+                    mesh.rotation.y += rotationDelta; // This will be negative due to params.velocity
+                    break;
+
+                case 'uranus':
+                    // Uranus: Rotate around its tilted axis (on its side)
+                    // The 98° tilt is already applied in setupSpecialRotations
+                    // Rotate around the X-axis since it's tilted on its side
+                    mesh.rotation.x += rotationDelta;
+                    break;
+
+                default:
+                    // All other planets: Normal rotation around Y-axis
+                    // Any axial tilts are already applied in setupSpecialRotations
+                    mesh.rotation.y += rotationDelta;
+                    break;
+            }
+
+            // Store the rotation angle for reference
+            body.rotationAngle += rotationDelta;
         }
 
         /**
-         * MODIFIED: Set speed multiplier instead of play/pause
+         * Set speed multiplier
          */
         setSpeed(speedMultiplier) {
             this.currentSpeedMultiplier = speedMultiplier;
@@ -201,7 +335,6 @@ window.OrbitalMechanics = (function() {
          * DEPRECATED: Kept for compatibility but maps to speed control
          */
         setPlaying(playing) {
-            // Map old play/pause to speed 0/1 for compatibility
             this.setSpeed(playing ? 1.0 : 0);
 
             if (window.Helpers) {
@@ -221,10 +354,13 @@ window.OrbitalMechanics = (function() {
 
                 this.updatePlanetPosition(body, 0);
                 this.updatePlanetRotation(body, 0);
+
+                // Reapply special rotations
+                this.setupSpecialRotations(body.mesh, body.data);
             });
 
             if (window.Helpers) {
-                window.Helpers.log('All planetary positions reset', 'debug');
+                window.Helpers.log('All planetary positions reset with correct rotations', 'debug');
             }
         }
 
@@ -264,7 +400,9 @@ window.OrbitalMechanics = (function() {
                 orbitalRadius: body.params.radius,
                 orbitalPeriod: body.params.period,
                 position: body.mesh.position.clone(),
-                rotationAngle: body.rotationAngle
+                rotationAngle: body.rotationAngle,
+                axialTilt: body.params.axialTilt, // NEW
+                isRetrograde: body.params.isRetrograde // NEW
             };
         }
 
@@ -366,7 +504,7 @@ window.OrbitalMechanics = (function() {
         }
 
         /**
-         * MODIFIED: Get orbital statistics with speed-based state
+         * Get orbital statistics with speed-based state
          */
         getStats() {
             const earthData = this.orbitingBodies.get('earth');
@@ -379,10 +517,11 @@ window.OrbitalMechanics = (function() {
                 simulationDays: this.time,
                 simulationYears: this.getSimulationTimeYears(),
                 earthCompletedOrbits: earthCompletedOrbits.toFixed(3),
-                currentSpeedMultiplier: this.currentSpeedMultiplier, // MODIFIED: Show speed instead of pause state
-                isAtZeroSpeed: this.currentSpeedMultiplier === 0, // NEW: Indicates if effectively "paused"
+                currentSpeedMultiplier: this.currentSpeedMultiplier,
+                isAtZeroSpeed: this.currentSpeedMultiplier === 0,
                 pathsVisible: this.options.showOrbitalPaths,
-                baseTimeScale: this.options.timeScale
+                baseTimeScale: this.options.timeScale,
+                realisticRotations: this.options.enableRealisticRotations // NEW
             };
         }
 
@@ -483,12 +622,12 @@ window.OrbitalMechanics = (function() {
             }
         }
 
-        // Getters for external access - MODIFIED for speed-based approach
+        // Getters for external access
         get OrbitingBodyCount() { return this.orbitingBodies.size; }
         get SimulationTime() { return this.time; }
-        get CurrentSpeed() { return this.currentSpeedMultiplier; } // NEW
-        get IsAtZeroSpeed() { return this.currentSpeedMultiplier === 0; } // NEW
-        get TimeSpeed() { return this.currentSpeedMultiplier; } // MODIFIED: Return speed multiplier
+        get CurrentSpeed() { return this.currentSpeedMultiplier; }
+        get IsAtZeroSpeed() { return this.currentSpeedMultiplier === 0; }
+        get TimeSpeed() { return this.currentSpeedMultiplier; }
         get OrbitingBodies() { return this.orbitingBodies; }
     }
 
@@ -517,4 +656,4 @@ window.OrbitalMechanics = (function() {
     };
 })();
 
-console.log('OrbitalMechanics with speed-based control loaded successfully');
+console.log('🌟 FIXED OrbitalMechanics with Venus retrograde and Uranus 98° tilt loaded successfully');
