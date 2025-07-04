@@ -208,13 +208,13 @@ window.OrbitalMechanics = (function() {
             // Fix rings: align with planet's tilted equator
             const rings = uranusMesh.getObjectByName('Uranus_rings');
             if (rings) {
-                rings.rotation.z = THREE.MathUtils.degToRad(98);
+                rings.rotation.z = THREE.MathUtils.degToRad(90);
             }
 
             // Fix moons: keep in solar system plane
             const moonSystem = uranusMesh.getObjectByName('Uranus_moons');
             if (moonSystem) {
-                moonSystem.rotation.set(0, 0, 0);
+                moonSystem.rotation.set(180, 180, 180);
 
                 // Update moon positions to stay in horizontal plane
                 moonSystem.children.forEach(moon => {
