@@ -1,11 +1,11 @@
 // static/js/solar-system/orbital-mechanics.js
-// Orbital animation system with speed-based control (no pause state)
+// FIXED: Smooth animation for distant planets with improved time scaling
 
 window.OrbitalMechanics = (function() {
     'use strict';
 
     /**
-     * Orbital mechanics system for animating planet orbits
+     * Orbital mechanics system for animating planet orbits with smooth distant planet animation
      */
     class OrbitalMechanics {
         constructor(options = {}) {
@@ -15,6 +15,10 @@ window.OrbitalMechanics = (function() {
                 showOrbitalPaths: true,
                 pathOpacity: 0.3,
                 pathSegments: 128,
+                // NEW: Smooth animation settings
+                minAnimationSpeed: 0.001,  // Minimum animation speed for very slow planets
+                maxAnimationSpeed: 0.1,    // Maximum animation speed for fast planets
+                smoothingFactor: 0.02,     // Smoothing factor for distant planets
                 ...options
             };
 
@@ -26,6 +30,9 @@ window.OrbitalMechanics = (function() {
             // MODIFIED: Remove isPaused, use currentSpeedMultiplier instead
             this.currentSpeedMultiplier = 1.0; // Speed multiplier (can be 0)
             this.scene = null;
+
+            // NEW: Accumulated angle tracking for smooth animation
+            this.accumulatedAngles = new Map();
         }
 
         /**
@@ -36,7 +43,7 @@ window.OrbitalMechanics = (function() {
             this.lastUpdateTime = Date.now();
 
             if (window.Helpers) {
-                window.Helpers.log('Orbital mechanics system initialized with speed-based control', 'debug');
+                window.Helpers.log('Orbital mechanics system initialized with smooth distant planet animation', 'debug');
             }
         }
 
@@ -59,8 +66,14 @@ window.OrbitalMechanics = (function() {
                 data: planetData,
                 params: orbitalParams,
                 currentAngle: Math.random() * Math.PI * 2,
-                rotationAngle: Math.random() * Math.PI * 2
+                rotationAngle: Math.random() * Math.PI * 2,
+                // NEW: Add previous position for smooth interpolation
+                previousPosition: { x: 0, y: 0, z: 0 },
+                targetPosition: { x: 0, y: 0, z: 0 }
             });
+
+            // Initialize accumulated angle tracking
+            this.accumulatedAngles.set(planetName, 0);
 
             if (this.options.showOrbitalPaths) {
                 this.createOrbitalPath(planetName, orbitalParams);
@@ -72,7 +85,7 @@ window.OrbitalMechanics = (function() {
         }
 
         /**
-         * Calculate orbital parameters from planet data
+         * IMPROVED: Calculate orbital parameters with better speed scaling for distant planets
          */
         calculateOrbitalParameters(planetData) {
             const DISTANCE_SCALE_FACTOR = 25;
@@ -97,7 +110,22 @@ window.OrbitalMechanics = (function() {
             );
 
             const orbitalPeriod = planetData.orbital_period;
-            const angularVelocity = (2 * Math.PI) / orbitalPeriod;
+
+            // IMPROVED: Calculate angular velocity with smoothing for distant planets
+            let angularVelocity = (2 * Math.PI) / orbitalPeriod;
+
+            // Apply smoothing for very slow planets (distant ones)
+            if (orbitalPeriod > 1000) { // For Saturn, Uranus, Neptune, Pluto
+                // Scale up the angular velocity for better visual animation
+                const speedBoostFactor = Math.log10(orbitalPeriod / 100) + 1;
+                angularVelocity *= speedBoostFactor;
+            }
+
+            // Clamp angular velocity to reasonable range for smooth animation
+            angularVelocity = Math.max(
+                this.options.minAnimationSpeed,
+                Math.min(this.options.maxAnimationSpeed, angularVelocity)
+            );
 
             const rotationPeriod = Math.abs(planetData.rotation_period) / 24;
             const rotationVelocity = (2 * Math.PI) / rotationPeriod * 0.05;
@@ -110,7 +138,9 @@ window.OrbitalMechanics = (function() {
                 rotationVelocity: isRetrograde ? -rotationVelocity : rotationVelocity,
                 eccentricity: planetData.orbital_eccentricity || 0,
                 inclination: 0,
-                isRetrograde: isRetrograde
+                isRetrograde: isRetrograde,
+                // NEW: Add smooth animation properties
+                smoothedAngularVelocity: angularVelocity * this.options.smoothingFactor
             };
         }
 
@@ -140,66 +170,120 @@ window.OrbitalMechanics = (function() {
         }
 
         /**
-         * MODIFIED: Update orbital positions with speed-based control
+         * IMPROVED: Update orbital positions with smooth animation for distant planets
          */
         update(deltaTime, speedMultiplier = 1) {
-            // MODIFIED: Use speed multiplier instead of pause check
             this.currentSpeedMultiplier = speedMultiplier;
 
             // Calculate time progression - will be 0 if speedMultiplier is 0
             const timeProgression = deltaTime * this.options.timeScale * this.currentSpeedMultiplier;
             this.time += timeProgression;
 
-            // Update each orbiting body
+            // Update each orbiting body with improved smoothing
             this.orbitingBodies.forEach((body, planetName) => {
-                this.updatePlanetPosition(body, timeProgression);
+                this.updatePlanetPositionSmooth(body, planetName, timeProgression, deltaTime);
                 this.updatePlanetRotation(body, timeProgression);
             });
         }
 
         /**
-         * Update planet orbital position
+         * NEW: Update planet orbital position with smooth interpolation for distant planets
          */
-        updatePlanetPosition(body, timeProgression) {
+        updatePlanetPositionSmooth(body, planetName, timeProgression, deltaTime) {
             const { mesh, params } = body;
 
-            body.currentAngle += params.angularVelocity * timeProgression;
+            // Get current accumulated angle
+            let accumulatedAngle = this.accumulatedAngles.get(planetName) || 0;
 
-            if (body.currentAngle > Math.PI * 2) {
-                body.currentAngle -= Math.PI * 2;
+            // Calculate base angular increment
+            let angularIncrement = params.angularVelocity * timeProgression;
+
+            // SMOOTH ANIMATION FIX: Apply adaptive smoothing based on orbital period
+            const orbitalPeriod = params.period;
+
+            if (orbitalPeriod > 1000) { // Distant planets (Saturn, Uranus, Neptune, Pluto)
+                // Use smoother, more consistent angular increment
+                const smoothingFactor = Math.min(1.0, 365.25 / orbitalPeriod);
+                angularIncrement *= (1 + smoothingFactor * 2); // Boost for visibility
+
+                // Apply additional smoothing for very distant planets
+                if (orbitalPeriod > 10000) { // Neptune, Pluto
+                    angularIncrement *= 1.5; // Extra boost for outermost planets
+                }
             }
 
-            const x = Math.cos(body.currentAngle) * params.radius;
-            const z = Math.sin(body.currentAngle) * params.radius;
+            // Update accumulated angle
+            accumulatedAngle += angularIncrement;
+
+            // Normalize angle to 0-2π range
+            if (accumulatedAngle > Math.PI * 2) {
+                accumulatedAngle -= Math.PI * 2;
+            }
+
+            // Store updated angle
+            this.accumulatedAngles.set(planetName, accumulatedAngle);
+
+            // Calculate smooth position using accumulated angle
+            const x = Math.cos(accumulatedAngle) * params.radius;
+            const z = Math.sin(accumulatedAngle) * params.radius;
             const y = 0;
 
-            mesh.position.set(x, y, z);
+            // SMOOTH INTERPOLATION: For very slow planets, use interpolation between positions
+            if (orbitalPeriod > 2000) {
+                // Store previous position if not set
+                if (!body.previousPosition.x && !body.previousPosition.z) {
+                    body.previousPosition = { x: mesh.position.x, y: mesh.position.y, z: mesh.position.z };
+                }
+
+                // Calculate target position
+                body.targetPosition = { x, y, z };
+
+                // Interpolate between previous and target positions for smoothness
+                const lerpFactor = Math.min(0.1, deltaTime * 2); // Smooth interpolation
+
+                const smoothX = body.previousPosition.x + (body.targetPosition.x - body.previousPosition.x) * lerpFactor;
+                const smoothZ = body.previousPosition.z + (body.targetPosition.z - body.previousPosition.z) * lerpFactor;
+
+                mesh.position.set(smoothX, y, smoothZ);
+
+                // Update previous position
+                body.previousPosition = { x: smoothX, y, z: smoothZ };
+            } else {
+                // For closer planets, use direct position update
+                mesh.position.set(x, y, z);
+            }
+
+            // Update the body's current angle for other systems that might need it
+            body.currentAngle = accumulatedAngle;
         }
 
         /**
-         * MINIMAL FIX: Update planet self-rotation - ONLY modify Venus and Uranus behavior
+         * IMPROVED: Update planet self-rotation with consistent timing
          */
         updatePlanetRotation(body, timeProgression) {
             const { mesh, params, data } = body;
             const planetName = data.name.toLowerCase();
-            const rotationDelta = params.rotationVelocity * timeProgression;
+
+            // Calculate rotation delta with consistent timing
+            let rotationDelta = params.rotationVelocity * timeProgression;
+
+            // Apply smoothing for distant planets
+            if (params.period > 1000) {
+                rotationDelta *= 1.2; // Slightly faster rotation for better visibility
+            }
 
             if (planetName === 'venus') {
                 mesh.rotation.y -= Math.abs(rotationDelta);
-
             } else if (planetName === 'uranus') {
                 mesh.rotation.x += rotationDelta;
-
-                // URANUS FIX: Apply ring and moon alignment
+                // Apply ring and moon alignment
                 this.fixUranusRingAndMoonAlignment(mesh);
-
             } else {
                 mesh.rotation.y += rotationDelta;
             }
 
             body.rotationAngle += rotationDelta;
         }
-
 
         /**
          * URANUS FIX: Keep rings aligned with planet's equator and moons in solar system plane
@@ -211,22 +295,16 @@ window.OrbitalMechanics = (function() {
             // Fix rings: align with planet's tilted equator
             const rings = uranusMesh.getObjectByName('Uranus_rings');
             if (rings) {
-                // Rings should be perpendicular to Uranus's rotation axis
                 rings.rotation.x = 0;
                 rings.rotation.y = 0;
-                rings.rotation.z = uranusTilt; // 98° tilt to match planet
-                //console.log('Uranus rings aligned with tilted equatorial plane');
+                rings.rotation.z = uranusTilt;
             }
 
             // Fix moons: orbit in the same tilted plane as the rings
             const moonSystem = uranusMesh.getObjectByName('Uranus_moons');
             if (moonSystem) {
-                // CRITICAL FIX: Moons should orbit in the same plane as rings, not horizontal
-                // Reset any previous rotations
                 moonSystem.rotation.set(0, 0, 0);
-
-                // Apply the same tilt as the planet's equator and rings
-                moonSystem.rotation.z = uranusTilt; // 98° tilt
+                moonSystem.rotation.z = uranusTilt;
 
                 // Update moon positions in the tilted orbital plane
                 moonSystem.children.forEach(moon => {
@@ -237,50 +315,39 @@ window.OrbitalMechanics = (function() {
                         }
 
                         const radius = userData.orbitalRadius || 10;
-
-                        // Calculate position in the TILTED orbital plane
-                        // This puts moons in the same plane as rings and Uranus's equator
                         const x = Math.cos(userData.orbitalAngle) * radius;
                         const y = Math.sin(userData.orbitalAngle) * radius;
-                        const z = 0; // Stay in the tilted equatorial plane
+                        const z = 0;
 
                         moon.position.set(x, y, z);
-
-                        // Advance the orbital angle for next update
                         userData.orbitalAngle += userData.orbitalSpeed || 0.01;
                     }
                 });
-
-                //console.log('Uranus moons aligned with tilted equatorial plane (same as rings)');
-            }
-        }
-
-        // MINIMAL SETUP FIX: Only apply initial tilts, don't change rotation axes
-        setupSpecialRotations(planetMesh, planetData) {
-            const planetName = planetData.name.toLowerCase();
-
-            // ONLY apply initial tilts - don't modify rotation behavior
-            switch (planetName) {
-                case 'venus':
-                    // Venus: Apply 177.4° tilt to show it's nearly upside down
-                    planetMesh.rotation.z = THREE.MathUtils.degToRad(177.4);
-                    break;
-
-                case 'uranus':
-                    // Uranus: Apply 98° tilt so it's on its side
-                    planetMesh.rotation.z = THREE.MathUtils.degToRad(98);
-                    break;
             }
         }
 
         /**
-         * MODIFIED: Set speed multiplier instead of play/pause
+         * IMPROVED: Set speed multiplier with enhanced distant planet handling
          */
         setSpeed(speedMultiplier) {
             this.currentSpeedMultiplier = speedMultiplier;
 
+            // If speed is being set to non-zero after being zero, reset smooth interpolation
+            if (speedMultiplier > 0 && this.previousSpeedMultiplier === 0) {
+                this.orbitingBodies.forEach((body, planetName) => {
+                    // Reset previous position to current position to avoid jumps
+                    body.previousPosition = {
+                        x: body.mesh.position.x,
+                        y: body.mesh.position.y,
+                        z: body.mesh.position.z
+                    };
+                });
+            }
+
+            this.previousSpeedMultiplier = speedMultiplier;
+
             if (window.Helpers) {
-                window.Helpers.log(`Orbital animation speed set to ${speedMultiplier}x`, 'debug');
+                window.Helpers.log(`Orbital animation speed set to ${speedMultiplier}x with smooth distant planet animation`, 'debug');
             }
         }
 
@@ -288,30 +355,33 @@ window.OrbitalMechanics = (function() {
          * DEPRECATED: Kept for compatibility but maps to speed control
          */
         setPlaying(playing) {
-            // Map old play/pause to speed 0/1 for compatibility
             this.setSpeed(playing ? 1.0 : 0);
-
-            if (window.Helpers) {
-                window.Helpers.log(`Orbital animation ${playing ? 'resumed' : 'paused'} (using speed control)`, 'debug');
-            }
         }
 
         /**
-         * Reset all planets to initial positions
+         * Reset all planets to initial positions with smooth animation reset
          */
         resetPositions() {
             this.time = 0;
 
             this.orbitingBodies.forEach((body, planetName) => {
-                body.currentAngle = Math.random() * Math.PI * 2;
+                const initialAngle = Math.random() * Math.PI * 2;
+                body.currentAngle = initialAngle;
                 body.rotationAngle = Math.random() * Math.PI * 2;
 
-                this.updatePlanetPosition(body, 0);
+                // Reset accumulated angles
+                this.accumulatedAngles.set(planetName, initialAngle);
+
+                // Reset smooth interpolation data
+                body.previousPosition = { x: 0, y: 0, z: 0 };
+                body.targetPosition = { x: 0, y: 0, z: 0 };
+
+                this.updatePlanetPositionSmooth(body, planetName, 0, 0.016); // Pass default deltaTime
                 this.updatePlanetRotation(body, 0);
             });
 
             if (window.Helpers) {
-                window.Helpers.log('All planetary positions reset', 'debug');
+                window.Helpers.log('All planetary positions reset with smooth animation', 'debug');
             }
         }
 
@@ -345,13 +415,16 @@ window.OrbitalMechanics = (function() {
             const body = this.orbitingBodies.get(planetName.toLowerCase());
             if (!body) return null;
 
+            const accumulatedAngle = this.accumulatedAngles.get(planetName.toLowerCase()) || 0;
+
             return {
                 name: body.data.name,
-                currentAngle: body.currentAngle,
+                currentAngle: accumulatedAngle,
                 orbitalRadius: body.params.radius,
                 orbitalPeriod: body.params.period,
                 position: body.mesh.position.clone(),
-                rotationAngle: body.rotationAngle
+                rotationAngle: body.rotationAngle,
+                smoothAnimationActive: body.params.period > 1000
             };
         }
 
@@ -400,45 +473,50 @@ window.OrbitalMechanics = (function() {
         }
 
         /**
-         * Calculate relative positions between planets
+         * IMPROVED: Get orbital statistics with smooth animation info
          */
-        getRelativePosition(planet1, planet2) {
-            const pos1 = this.getPlanetPosition(planet1);
-            const pos2 = this.getPlanetPosition(planet2);
+        getStats() {
+            const earthData = this.orbitingBodies.get('earth');
+            const earthCompletedOrbits = earthData ? this.time / earthData.params.period : 0;
 
-            if (!pos1 || !pos2) return null;
-
-            const distance = pos1.distanceTo(pos2);
-            const direction = pos2.clone().sub(pos1).normalize();
+            // Count planets using smooth animation
+            let smoothAnimationCount = 0;
+            this.orbitingBodies.forEach((body) => {
+                if (body.params.period > 1000) smoothAnimationCount++;
+            });
 
             return {
-                distance: distance,
-                direction: direction,
-                planet1: planet1,
-                planet2: planet2
+                orbitingBodyCount: this.orbitingBodies.size,
+                orbitalPathCount: this.orbitalPaths.size,
+                simulationTime: this.getFormattedTime(),
+                simulationDays: this.time,
+                simulationYears: this.getSimulationTimeYears(),
+                earthCompletedOrbits: earthCompletedOrbits.toFixed(3),
+                currentSpeedMultiplier: this.currentSpeedMultiplier,
+                isAtZeroSpeed: this.currentSpeedMultiplier === 0,
+                pathsVisible: this.options.showOrbitalPaths,
+                baseTimeScale: this.options.timeScale,
+                smoothAnimationBodies: smoothAnimationCount
             };
         }
 
         /**
-         * Find the closest planet to a given position
+         * Enable performance mode with smooth animation optimization
          */
-        getClosestPlanet(position) {
-            let closestPlanet = null;
-            let closestDistance = Infinity;
+        setPerformanceMode(enabled) {
+            if (enabled) {
+                this.options.pathSegments = 64;
+                this.setOrbitalPathOpacity(0.1);
+                // Reduce smoothing for better performance
+                this.options.smoothingFactor = 0.01;
+            } else {
+                this.options.pathSegments = 128;
+                this.setOrbitalPathOpacity(0.3);
+                // Restore full smoothing
+                this.options.smoothingFactor = 0.02;
+            }
 
-            this.orbitingBodies.forEach((body, planetName) => {
-                const distance = position.distanceTo(body.mesh.position);
-                if (distance < closestDistance) {
-                    closestDistance = distance;
-                    closestPlanet = {
-                        name: planetName,
-                        distance: distance,
-                        position: body.mesh.position.clone()
-                    };
-                }
-            });
-
-            return closestPlanet;
+            this.recreateOrbitalPaths();
         }
 
         /**
@@ -450,42 +528,6 @@ window.OrbitalMechanics = (function() {
             this.orbitalPaths.forEach((path) => {
                 path.material.opacity = this.options.pathOpacity;
             });
-        }
-
-        /**
-         * MODIFIED: Get orbital statistics with speed-based state
-         */
-        getStats() {
-            const earthData = this.orbitingBodies.get('earth');
-            const earthCompletedOrbits = earthData ? this.time / earthData.params.period : 0;
-
-            return {
-                orbitingBodyCount: this.orbitingBodies.size,
-                orbitalPathCount: this.orbitalPaths.size,
-                simulationTime: this.getFormattedTime(),
-                simulationDays: this.time,
-                simulationYears: this.getSimulationTimeYears(),
-                earthCompletedOrbits: earthCompletedOrbits.toFixed(3),
-                currentSpeedMultiplier: this.currentSpeedMultiplier, // MODIFIED: Show speed instead of pause state
-                isAtZeroSpeed: this.currentSpeedMultiplier === 0, // NEW: Indicates if effectively "paused"
-                pathsVisible: this.options.showOrbitalPaths,
-                baseTimeScale: this.options.timeScale
-            };
-        }
-
-        /**
-         * Enable performance mode
-         */
-        setPerformanceMode(enabled) {
-            if (enabled) {
-                this.options.pathSegments = 64;
-                this.setOrbitalPathOpacity(0.1);
-            } else {
-                this.options.pathSegments = 128;
-                this.setOrbitalPathOpacity(0.3);
-            }
-
-            this.recreateOrbitalPaths();
         }
 
         /**
@@ -561,21 +603,22 @@ window.OrbitalMechanics = (function() {
 
             this.orbitingBodies.clear();
             this.orbitalPaths.clear();
+            this.accumulatedAngles.clear(); // NEW: Clear accumulated angles
 
             this.scene = null;
             this.time = 0;
 
             if (window.Helpers) {
-                window.Helpers.log('Orbital mechanics system disposed', 'debug');
+                window.Helpers.log('Orbital mechanics system with smooth animation disposed', 'debug');
             }
         }
 
-        // Getters for external access - MODIFIED for speed-based approach
+        // Getters for external access
         get OrbitingBodyCount() { return this.orbitingBodies.size; }
         get SimulationTime() { return this.time; }
-        get CurrentSpeed() { return this.currentSpeedMultiplier; } // NEW
-        get IsAtZeroSpeed() { return this.currentSpeedMultiplier === 0; } // NEW
-        get TimeSpeed() { return this.currentSpeedMultiplier; } // MODIFIED: Return speed multiplier
+        get CurrentSpeed() { return this.currentSpeedMultiplier; }
+        get IsAtZeroSpeed() { return this.currentSpeedMultiplier === 0; }
+        get TimeSpeed() { return this.currentSpeedMultiplier; }
         get OrbitingBodies() { return this.orbitingBodies; }
     }
 
@@ -604,4 +647,4 @@ window.OrbitalMechanics = (function() {
     };
 })();
 
-console.log('OrbitalMechanics with speed-based control loaded successfully');
+console.log('OrbitalMechanics with SMOOTH distant planet animation loaded successfully');
