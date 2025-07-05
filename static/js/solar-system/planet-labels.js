@@ -296,9 +296,9 @@ window.PlanetLabels = (function() {
                 });
             }
 
-            if (window.Helpers) {
-                window.Helpers.log(`Planet labels ${visible ? 'enabled' : 'disabled'}`, 'debug');
-            }
+            // if (window.Helpers) {
+            //     window.Helpers.log(`Planet labels ${visible ? 'enabled' : 'disabled'}`, 'debug');
+            // }
         }
 
         /**
