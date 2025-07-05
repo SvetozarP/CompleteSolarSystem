@@ -1,5 +1,5 @@
 // static/js/ui/control-panel.js
-// FIXED: Remove play-pause button completely and implement speed 0 button
+// FIXED: Consolidated keyboard handling with all functionality
 
 window.ControlPanel = (function() {
     'use strict';
@@ -9,16 +9,13 @@ window.ControlPanel = (function() {
     let currentSpeed = 1.0;
 
     function initializeControls() {
-        // Get control elements - EXPLICITLY EXCLUDE play-pause-btn
+        // Get control elements - EXPLICITLY EXCLUDE play-pause button
         controls = {
             panel: document.getElementById('control-panel') ||
                    document.querySelector('.control-panel'),
 
             collapseBtn: document.getElementById('collapse-panel') ||
                         document.querySelector('.collapse-btn'),
-
-            // REMOVED: Do not look for play-pause button
-            // playPauseBtn: null,
 
             resetBtn: document.getElementById('reset-btn') ||
                       document.querySelector('.reset-btn'),
@@ -403,9 +400,128 @@ window.ControlPanel = (function() {
         }
     }
 
+    // Helper functions for keyboard shortcuts
+    function toggleLabels() {
+        const labelsCheckbox = controls.checkboxes.labels;
+        if (labelsCheckbox) {
+            labelsCheckbox.checked = !labelsCheckbox.checked;
+            labelsCheckbox.dispatchEvent(new Event('change'));
+        }
+    }
+
+    function togglePlanetInfo() {
+        if (window.solarSystemApp && window.solarSystemApp.interactionManager) {
+            const selectedPlanet = window.solarSystemApp.interactionManager.SelectedPlanet;
+            if (selectedPlanet) {
+                const infoPanel = document.getElementById('info-panel');
+                if (infoPanel) {
+                    infoPanel.classList.toggle('hidden');
+
+                    if (window.NotificationSystem) {
+                        const isVisible = !infoPanel.classList.contains('hidden');
+                        window.NotificationSystem.showInfo(
+                            `ℹ️ Planet info ${isVisible ? 'shown' : 'hidden'}`
+                        );
+                    }
+                }
+            } else {
+                if (window.NotificationSystem) {
+                    window.NotificationSystem.showWarning('No planet selected');
+                }
+            }
+        }
+    }
+
+    function togglePlanetFollowing() {
+        if (window.solarSystemApp && window.solarSystemApp.togglePlanetFollowing) {
+            window.solarSystemApp.togglePlanetFollowing();
+        }
+    }
+
+    function takeScreenshot() {
+        if (window.solarSystemApp && window.solarSystemApp.sceneManager) {
+            try {
+                const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+                const filename = `solar-system-${timestamp}.png`;
+                window.solarSystemApp.sceneManager.takeScreenshot(filename);
+
+                if (window.NotificationSystem) {
+                    window.NotificationSystem.showSuccess('📷 Screenshot saved!');
+                }
+            } catch (error) {
+                console.error('Screenshot failed:', error);
+                if (window.NotificationSystem) {
+                    window.NotificationSystem.showError('Screenshot failed');
+                }
+            }
+        }
+    }
+
+    function performZoom(direction) {
+        // direction: 'in' or 'out'
+        const zoomBtn = document.getElementById(direction === 'in' ? 'zoom-in' : 'zoom-out');
+        if (zoomBtn) {
+            zoomBtn.click();
+        } else {
+            // Direct zoom implementation if buttons not available
+            if (window.solarSystemApp && window.solarSystemApp.cameraControls) {
+                const controls = window.solarSystemApp.cameraControls;
+                const camera = controls.camera;
+                const zoomFactor = direction === 'in' ? 0.8 : 1.25;
+
+                if (controls.IsFollowing) {
+                    controls.followDistance = direction === 'in' ?
+                        Math.max(controls.followDistance * zoomFactor, 5) :
+                        Math.min(controls.followDistance * zoomFactor, 200);
+
+                    if (controls.followedPlanet) {
+                        const planetPosition = new THREE.Vector3();
+                        controls.followedPlanet.getWorldPosition(planetPosition);
+                        controls.followOffset.normalize().multiplyScalar(controls.followDistance);
+                        camera.position.copy(planetPosition).add(controls.followOffset);
+                        camera.lookAt(planetPosition);
+                    }
+                } else {
+                    const direction = new THREE.Vector3();
+                    camera.getWorldDirection(direction);
+                    const zoomDistance = camera.position.distanceTo(controls.target) * 0.2;
+                    camera.position.add(direction.multiplyScalar(
+                        direction === 'in' ? zoomDistance : -zoomDistance
+                    ));
+                }
+
+                controls.updateSphericalFromCamera();
+            }
+        }
+    }
+
+    function resetZoom() {
+        const zoomResetBtn = document.getElementById('zoom-reset');
+        if (zoomResetBtn) {
+            zoomResetBtn.click();
+        } else if (window.solarSystemApp && window.solarSystemApp.resetCameraView) {
+            window.solarSystemApp.resetCameraView();
+        }
+    }
+
+    function stopFollowing() {
+        if (window.solarSystemApp && window.solarSystemApp.stopFollowingPlanet) {
+            window.solarSystemApp.stopFollowingPlanet();
+        }
+
+        // Close any open panels
+        const panels = ['help-modal', 'system-info-modal', 'info-panel'];
+        panels.forEach(panelId => {
+            const panel = document.getElementById(panelId);
+            if (panel && !panel.classList.contains('hidden')) {
+                panel.classList.add('hidden');
+            }
+        });
+    }
+
     return {
         init: function() {
-            console.log('🎮 Initializing ControlPanel with speed-only controls...');
+            console.log('🎮 Initializing ControlPanel with consolidated keyboard handling...');
 
             // Wait a moment for DOM to be ready
             setTimeout(() => {
@@ -415,7 +531,7 @@ window.ControlPanel = (function() {
             }, 100);
 
             if (window.Helpers) {
-                window.Helpers.log('Enhanced Control Panel with speed-only controls initialized', 'debug');
+                window.Helpers.log('Enhanced Control Panel with consolidated controls initialized', 'debug');
             }
         },
 
@@ -478,67 +594,105 @@ window.ControlPanel = (function() {
             }
         },
 
-        // Keyboard shortcuts
-        // handleKeyPress: function(event) {
-        //     switch (event.code) {
-        //         case 'Space':
-        //             event.preventDefault();
-        //             if (currentSpeed === 0) {
-        //                 this.setSpeed(1.0);
-        //             } else {
-        //                 this.setSpeed(0);
-        //             }
-        //             break;
-        //         case 'KeyR':
-        //             event.preventDefault();
-        //             document.dispatchEvent(new CustomEvent('resetView'));
-        //             break;
-        //         case 'KeyH':
-        //             event.preventDefault();
-        //             document.dispatchEvent(new CustomEvent('toggleHelp'));
-        //             break;
-        //         case 'Escape':
-        //             event.preventDefault();
-        //             document.dispatchEvent(new CustomEvent('closeAllPanels'));
-        //             break;
-        //         default:
-        //             if (event.code.startsWith('Digit')) {
-        //                 const digit = event.code.replace('Digit', '');
-        //                 if (controls.planetNavigation) {
-        //                     const button = controls.planetNavigation.querySelector(`[data-key="${digit}"]`);
-        //                     if (button) {
-        //                         event.preventDefault();
-        //                         button.click();
-        //                     }
-        //                 }
-        //             }
-        //             break;
-        //     }
-        // },
-
-        // Keyboard shortcuts
+        // CONSOLIDATED KEYBOARD SHORTCUTS - All functionality in one place
         handleKeyPress: function(event) {
+            console.log('Handling key press:', event.code);
+
             switch (event.code) {
                 case 'Space':
                     event.preventDefault();
+                    event.stopPropagation();
                     if (currentSpeed === 0) {
                         this.setSpeed(1.0);
                     } else {
                         this.setSpeed(0);
                     }
                     return true; // Handled
+
                 case 'KeyR':
                     event.preventDefault();
+                    event.stopPropagation();
                     document.dispatchEvent(new CustomEvent('resetView'));
                     return true; // Handled
+
                 case 'KeyH':
                     event.preventDefault();
+                    event.stopPropagation();
                     document.dispatchEvent(new CustomEvent('toggleHelp'));
                     return true; // Handled
+
+                case 'KeyI':
+                    event.preventDefault();
+                    event.stopPropagation();
+                    togglePlanetInfo();
+                    return true; // Handled
+
+                case 'KeyF':
+                    if (!event.ctrlKey && !event.metaKey && !event.altKey) {
+                        event.preventDefault();
+                        event.stopPropagation();
+                        // togglePlanetFollowing();
+                        return true; // Handled
+                    }
+                    break;
+
+                case 'KeyL':
+                    event.preventDefault();
+                    event.stopPropagation();
+                    toggleLabels();
+                    return true; // Handled
+
+                case 'KeyS':
+                    if (event.ctrlKey || event.metaKey) {
+                        event.preventDefault();
+                        event.stopPropagation();
+                        takeScreenshot();
+                        return true; // Handled
+                    }
+                    break;
+
+                case 'Equal':
+                case 'NumpadAdd':
+                    if (event.ctrlKey || event.metaKey) {
+                        event.preventDefault();
+                        event.stopPropagation();
+                        performZoom('in');
+                        return true; // Handled
+                    }
+                    break;
+
+                case 'Minus':
+                case 'NumpadSubtract':
+                    if (event.ctrlKey || event.metaKey) {
+                        event.preventDefault();
+                        event.stopPropagation();
+                        performZoom('out');
+                        return true; // Handled
+                    }
+                    break;
+
+                case 'Digit0':
+                    if (event.ctrlKey || event.metaKey) {
+                        event.preventDefault();
+                        event.stopPropagation();
+                        resetZoom();
+                        return true; // Handled
+                    } else {
+                        // Focus on Sun
+                        event.preventDefault();
+                        event.stopPropagation();
+                        focusOnPlanet('Sun');
+                        const button = controls.planetNavigation?.querySelector(`[data-key="0"]`);
+                        if (button) updateSelectedPlanetButton(button);
+                        return true; // Handled
+                    }
+
                 case 'Escape':
                     event.preventDefault();
-                    document.dispatchEvent(new CustomEvent('closeAllPanels'));
+                    event.stopPropagation();
+                    stopFollowing();
                     return true; // Handled
+
                 default:
                     if (event.code.startsWith('Digit')) {
                         const digit = event.code.replace('Digit', '');
@@ -546,17 +700,17 @@ window.ControlPanel = (function() {
                             const button = controls.planetNavigation.querySelector(`[data-key="${digit}"]`);
                             if (button) {
                                 event.preventDefault();
-                                event.stopPropagation(); // IMPORTANT: Stop event bubbling
-                                // Directly trigger focus without duplicate notifications
-                                focusOnPlanet(button.dataset.planet);
+                                event.stopPropagation();
+                                const planetName = button.textContent;
+                                focusOnPlanet(planetName);
                                 updateSelectedPlanetButton(button);
-                                return true; // Indicate we handled this
+                                return true; // Handled
                             }
                         }
                     }
                     break;
             }
-            return false; // Indicate we didn't handle this
+            return false; // Not handled
         },
 
         // State management
@@ -591,4 +745,4 @@ window.ControlPanel = (function() {
     };
 })();
 
-console.log('✅ FIXED ControlPanel with speed-only controls loaded successfully');
+console.log('✅ CONSOLIDATED ControlPanel with unified keyboard handling loaded successfully');
