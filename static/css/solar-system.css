@@ -83,6 +83,7 @@
     font-size: 1.1rem;
     color: var(--color-text-primary);
     font-family: var(--font-display);
+    order: 1;
 }
 
 .collapse-btn {
@@ -98,6 +99,7 @@
     display: flex;
     align-items: center;
     justify-content: center;
+    order: 0;
 }
 
 .collapse-btn:hover {
