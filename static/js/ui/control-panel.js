@@ -479,6 +479,44 @@ window.ControlPanel = (function() {
         },
 
         // Keyboard shortcuts
+        // handleKeyPress: function(event) {
+        //     switch (event.code) {
+        //         case 'Space':
+        //             event.preventDefault();
+        //             if (currentSpeed === 0) {
+        //                 this.setSpeed(1.0);
+        //             } else {
+        //                 this.setSpeed(0);
+        //             }
+        //             break;
+        //         case 'KeyR':
+        //             event.preventDefault();
+        //             document.dispatchEvent(new CustomEvent('resetView'));
+        //             break;
+        //         case 'KeyH':
+        //             event.preventDefault();
+        //             document.dispatchEvent(new CustomEvent('toggleHelp'));
+        //             break;
+        //         case 'Escape':
+        //             event.preventDefault();
+        //             document.dispatchEvent(new CustomEvent('closeAllPanels'));
+        //             break;
+        //         default:
+        //             if (event.code.startsWith('Digit')) {
+        //                 const digit = event.code.replace('Digit', '');
+        //                 if (controls.planetNavigation) {
+        //                     const button = controls.planetNavigation.querySelector(`[data-key="${digit}"]`);
+        //                     if (button) {
+        //                         event.preventDefault();
+        //                         button.click();
+        //                     }
+        //                 }
+        //             }
+        //             break;
+        //     }
+        // },
+
+        // Keyboard shortcuts
         handleKeyPress: function(event) {
             switch (event.code) {
                 case 'Space':
@@ -488,19 +526,19 @@ window.ControlPanel = (function() {
                     } else {
                         this.setSpeed(0);
                     }
-                    break;
+                    return true; // Handled
                 case 'KeyR':
                     event.preventDefault();
                     document.dispatchEvent(new CustomEvent('resetView'));
-                    break;
+                    return true; // Handled
                 case 'KeyH':
                     event.preventDefault();
                     document.dispatchEvent(new CustomEvent('toggleHelp'));
-                    break;
+                    return true; // Handled
                 case 'Escape':
                     event.preventDefault();
                     document.dispatchEvent(new CustomEvent('closeAllPanels'));
-                    break;
+                    return true; // Handled
                 default:
                     if (event.code.startsWith('Digit')) {
                         const digit = event.code.replace('Digit', '');
@@ -508,12 +546,17 @@ window.ControlPanel = (function() {
                             const button = controls.planetNavigation.querySelector(`[data-key="${digit}"]`);
                             if (button) {
                                 event.preventDefault();
-                                button.click();
+                                event.stopPropagation(); // IMPORTANT: Stop event bubbling
+                                // Directly trigger focus without duplicate notifications
+                                focusOnPlanet(button.dataset.planet);
+                                updateSelectedPlanetButton(button);
+                                return true; // Indicate we handled this
                             }
                         }
                     }
                     break;
             }
+            return false; // Indicate we didn't handle this
         },
 
         // State management

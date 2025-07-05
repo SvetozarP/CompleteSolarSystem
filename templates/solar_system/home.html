@@ -581,9 +581,9 @@ function setupZoomControls() {
             if (window.solarSystemApp && window.solarSystemApp.resetCameraView) {
                 window.solarSystemApp.resetCameraView();
 
-                if (window.NotificationSystem) {
-                    window.NotificationSystem.showInfo('📷 Camera Reset', 1500);
-                }
+<!--                if (window.NotificationSystem) {-->
+<!--                    window.NotificationSystem.showInfo('📷 Camera Reset', 1500);-->
+<!--                }-->
             }
         });
     }
@@ -813,32 +813,48 @@ function setupPlanetInteractionHandlers() {
             }
         }
 
-        // Show notification with follow option
-        if (window.NotificationSystem) {
-            window.NotificationSystem.showInfo(
-                '🪐 ' + planetData.name + ' selected - Double-click to follow', 3000
-            );
-        }
+<!--        // Show notification with follow option-->
+<!--        if (window.NotificationSystem) {-->
+<!--            window.NotificationSystem.showInfo(-->
+<!--                '🪐 ' + planetData.name + ' selected - Double-click to follow', 3000-->
+<!--            );-->
+<!--        }-->
     });
+
+<!--    // Enhanced double-click to follow planet-->
+<!--    document.addEventListener('focusPlanet', function(event) {-->
+<!--        const planetName = event.detail.planet;-->
+
+<!--        if (window.solarSystemApp && window.solarSystemApp.focusOnPlanet) {-->
+<!--            // Check if we should follow or just focus-->
+<!--            const shouldFollow = event.detail.follow !== false; // Default to true unless explicitly false-->
+
+<!--            window.solarSystemApp.focusOnPlanet(planetName, shouldFollow);-->
+
+<!--            // Show appropriate notification based on action-->
+<!--            if (window.NotificationSystem) {-->
+<!--                if (shouldFollow) {-->
+<!--                    window.NotificationSystem.showInfo(`📹 Following ${planetName}`);-->
+<!--                } else {-->
+<!--                    window.NotificationSystem.showInfo(`🎯 Focused on ${planetName}`);-->
+<!--                }-->
+<!--            }-->
+<!--        }-->
+<!--    });-->
 
     // Enhanced double-click to follow planet
     document.addEventListener('focusPlanet', function(event) {
         const planetName = event.detail.planet;
+        console.log('focusPlanet event received for:', planetName);
 
         if (window.solarSystemApp && window.solarSystemApp.focusOnPlanet) {
-            // Check if we should follow or just focus
-            const shouldFollow = event.detail.follow !== false; // Default to true unless explicitly false
+            // Always follow planets (simplified)
+            window.solarSystemApp.focusOnPlanet(planetName);
 
-            window.solarSystemApp.focusOnPlanet(planetName, shouldFollow);
-
-            // Show appropriate notification based on action
-            if (window.NotificationSystem) {
-                if (shouldFollow) {
-                    window.NotificationSystem.showInfo(`📹 Following ${planetName}`);
-                } else {
-                    window.NotificationSystem.showInfo(`🎯 Focused on ${planetName}`);
-                }
-            }
+            // SINGLE notification source - only here
+<!--            if (window.NotificationSystem) {-->
+<!--                window.NotificationSystem.showInfo(`📹 Following ${planetName}`, 2000);-->
+<!--            }-->
         }
     });
 

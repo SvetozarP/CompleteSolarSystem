@@ -55,10 +55,54 @@ window.SolarSystemApp = class {
         this.planetLabels = null;
     }
 
+    // /**
+    //  * Enhanced focus on planet with following capability
+    //  */
+    // focusOnPlanet(planetName, shouldFollow = true) {
+    //     const planetGroup = this.planetInstances.get(planetName);
+    //     if (!planetGroup || !this.cameraControls) {
+    //         console.warn(`Planet ${planetName} not found or camera controls not available`);
+    //         return;
+    //     }
+    //
+    //     const planetData = this.planets.find(p => p.name === planetName);
+    //     if (!planetData) {
+    //         console.warn(`Planet data for ${planetName} not found`);
+    //         return;
+    //     }
+    //
+    //     if (shouldFollow) {
+    //         this.cameraControls.focusAndFollowPlanet(planetGroup, planetData);
+    //
+    //         // REMOVED: Duplicate notification - let the event handler in template show it
+    //         // if (window.NotificationSystem) {
+    //         //     window.NotificationSystem.showInfo(`📹 Following ${planetName}`);
+    //         // }
+    //     } else {
+    //         const planetPosition = planetGroup.position;
+    //         const planetSize = this.planetFactory?.calculateScaledSize(planetData) || 1;
+    //         const viewDistance = Math.max(planetSize * 8, 10);
+    //
+    //         this.cameraControls.focusOn(planetPosition, viewDistance);
+    //
+    //         // REMOVED: Duplicate notification - let the event handler in template show it
+    //         // if (window.NotificationSystem) {
+    //         //     window.NotificationSystem.showInfo(`🎯 Focused on ${planetName}`);
+    //         // }
+    //     }
+    //
+    //     if (window.ControlPanel) {
+    //         window.ControlPanel.updateSelectedPlanet(planetName);
+    //         window.ControlPanel.updateCameraDistance(this.cameraControls.followDistance || 50);
+    //     }
+    // }
+
     /**
-     * Enhanced focus on planet with following capability
+     * Focus on planet with following (simplified - always follows)
      */
-    focusOnPlanet(planetName, shouldFollow = true) {
+    focusOnPlanet(planetName) {
+        console.log('SolarSystemApp.focusOnPlanet called for:', planetName);
+
         const planetGroup = this.planetInstances.get(planetName);
         if (!planetGroup || !this.cameraControls) {
             console.warn(`Planet ${planetName} not found or camera controls not available`);
@@ -71,30 +115,15 @@ window.SolarSystemApp = class {
             return;
         }
 
-        if (shouldFollow) {
-            this.cameraControls.focusAndFollowPlanet(planetGroup, planetData);
-
-            // REMOVED: Duplicate notification - let the event handler in template show it
-            // if (window.NotificationSystem) {
-            //     window.NotificationSystem.showInfo(`📹 Following ${planetName}`);
-            // }
-        } else {
-            const planetPosition = planetGroup.position;
-            const planetSize = this.planetFactory?.calculateScaledSize(planetData) || 1;
-            const viewDistance = Math.max(planetSize * 8, 10);
-
-            this.cameraControls.focusOn(planetPosition, viewDistance);
-
-            // REMOVED: Duplicate notification - let the event handler in template show it
-            // if (window.NotificationSystem) {
-            //     window.NotificationSystem.showInfo(`🎯 Focused on ${planetName}`);
-            // }
-        }
+        // Always follow planets (remove the option for non-following focus)
+        this.cameraControls.focusAndFollowPlanet(planetGroup, planetData);
 
         if (window.ControlPanel) {
             window.ControlPanel.updateSelectedPlanet(planetName);
             window.ControlPanel.updateCameraDistance(this.cameraControls.followDistance || 50);
         }
+
+        // NO notification here - let the event handler show it to avoid duplicates
     }
 
     /**
