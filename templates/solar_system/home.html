@@ -292,9 +292,9 @@
 {% endblock %}
 
 {% block app_init %}
-console.log('Starting Solar System App with SIMPLIFIED event handling...');
+console.log('Starting Solar System App with FIXED event cascading...');
 
-// SIMPLIFIED: Initialize the app without duplicate keyboard handling
+// FIXED: Initialize the app without duplicate event handling
 async function initializeSolarSystemApp() {
     try {
         console.log('Initializing Solar System App...');
@@ -402,7 +402,7 @@ function completeLoading() {
 function setupPostInitializationFeatures() {
     console.log('Setting up post-initialization features...');
 
-    // Setup window cleanup (ADD THIS LINE)
+    // Setup window cleanup
     setupWindowCleanup();
 
     // Show info cards after a delay
@@ -424,8 +424,7 @@ function setupPostInitializationFeatures() {
     // Start rotating facts
     startFactRotation();
 
-
-    // Setup canvas controls and unified keyboard handling
+    // Setup canvas controls and FIXED keyboard handling
     setupCanvasControls();
     setupPlanetInteractionHandlers();
     setupUnifiedKeyboardHandling();
@@ -476,39 +475,37 @@ function handleInitializationError(error) {
 // Start the initialization process immediately
 initializeSolarSystemApp();
 
+let homeEventCleanups = [];
 
-    let homeEventCleanups = [];
+function trackHomeEventListener(element, event, handler, options = {}) {
+    element.addEventListener(event, handler, options);
 
-    function trackHomeEventListener(element, event, handler, options = {}) {
-        element.addEventListener(event, handler, options);
+    const cleanup = () => element.removeEventListener(event, handler, options);
+    homeEventCleanups.push(cleanup);
 
-        const cleanup = () => element.removeEventListener(event, handler, options);
-        homeEventCleanups.push(cleanup);
+    return cleanup;
+}
 
-        return cleanup;
-    }
+function setupWindowCleanup() {
+    // Clean up on page unload
+    const unloadHandler = () => {
+        console.log('🧹 Page unloading - cleaning up event listeners...');
+        cleanupAllEventListeners();
+    };
 
-    function setupWindowCleanup() {
-        // Clean up on page unload
-        const unloadHandler = () => {
-            console.log('🧹 Page unloading - cleaning up event listeners...');
-            cleanupAllEventListeners();
-        };
+    trackHomeEventListener(window, 'beforeunload', unloadHandler);
 
-        trackHomeEventListener(window, 'beforeunload', unloadHandler);
+    // Clean up on visibility change (tab switch)
+    const visibilityHandler = () => {
+        if (document.hidden) {
+            console.log('👁️ Page hidden - reducing activity');
+        }
+    };
 
-        // Clean up on visibility change (tab switch)
-        const visibilityHandler = () => {
-            if (document.hidden) {
-                console.log('👁️ Page hidden - reducing activity');
-                // Could pause animations or reduce activity here
-            }
-        };
+    trackHomeEventListener(document, 'visibilitychange', visibilityHandler);
 
-        trackHomeEventListener(document, 'visibilitychange', visibilityHandler);
-
-        console.log('✅ Window cleanup handlers setup');
-    }
+    console.log('✅ Window cleanup handlers setup');
+}
 
 // Canvas controls setup
 function setupCanvasControls() {
@@ -528,7 +525,6 @@ function setupZoomControls() {
     const zoomResetBtn = document.getElementById('zoom-reset');
 
     if (zoomInBtn) {
-<!--        zoomInBtn.addEventListener('click', () => {-->
         const zoomInHandler = () => {
             console.log('Zoom in clicked');
 
@@ -570,7 +566,6 @@ function setupZoomControls() {
     }
 
     if (zoomOutBtn) {
-<!--        zoomOutBtn.addEventListener('click', () => {-->
         const zoomOutHandler = () => {
             console.log('Zoom out clicked');
 
@@ -612,7 +607,6 @@ function setupZoomControls() {
     }
 
     if (zoomResetBtn) {
-<!--        zoomResetBtn.addEventListener('click', () => {-->
         const zoomResetHandler = () => {
             console.log('Zoom reset clicked');
 
@@ -648,7 +642,6 @@ function setupViewControls() {
     }
 
     if (viewSideBtn) {
-<!--        viewSideBtn.addEventListener('click', () => {-->
         const viewSideBtnHandler = () => {
             if (window.solarSystemApp && window.solarSystemApp.cameraControls) {
                 const controls = window.solarSystemApp.cameraControls;
@@ -666,7 +659,6 @@ function setupViewControls() {
     }
 
     if (viewAngledBtn) {
-<!--        viewAngledBtn.addEventListener('click', () => {-->
         const viewAngledBtnHandler = () => {
             if (window.solarSystemApp && window.solarSystemApp.cameraControls) {
                 const controls = window.solarSystemApp.cameraControls;
@@ -689,7 +681,6 @@ function setupUtilityControls() {
     // Screenshot button
     const screenshotBtn = document.getElementById('screenshot-btn');
     if (screenshotBtn) {
-<!--        screenshotBtn.addEventListener('click', () => {-->
         const screenshotBtnHandler = () => {
             console.log('Screenshot button clicked');
 
@@ -716,7 +707,6 @@ function setupUtilityControls() {
     // Toggle labels button
     const toggleLabelsBtn = document.getElementById('toggle-labels');
     if (toggleLabelsBtn) {
-<!--        toggleLabelsBtn.addEventListener('click', () => {-->
         const toggleLabelsBtnHandler = () => {
             console.log('Toggle labels clicked');
 
@@ -729,12 +719,6 @@ function setupUtilityControls() {
                 }
 
                 updateToggleButtonState(toggleLabelsBtn, newState);
-
-<!--                if (window.NotificationSystem) {-->
-<!--                    window.NotificationSystem.showInfo(-->
-<!--                        `🏷️ Planet Labels ${newState ? 'Enabled' : 'Disabled'}`, 1500-->
-<!--                    );-->
-<!--                }-->
             }
         };
         trackHomeEventListener(toggleLabelsBtn, 'click', toggleLabelsBtnHandler);
@@ -743,12 +727,13 @@ function setupUtilityControls() {
     // Focus on Sun button
     const focusSunBtn = document.getElementById('focus-sun');
     if (focusSunBtn) {
-<!--        focusSunBtn.addEventListener('click', () => {-->
         const focusSunBtnHandler = () => {
             console.log('Focus Sun clicked');
-            document.dispatchEvent(new CustomEvent('focusPlanet', {
-                detail: { planet: 'Sun', follow: false }
-            }));
+
+            // FIXED: Direct call instead of event to prevent cascading
+            if (window.ControlPanel && window.ControlPanel.focusOnPlanet) {
+                window.ControlPanel.focusOnPlanet('Sun');
+            }
         };
         trackHomeEventListener(focusSunBtn, 'click', focusSunBtnHandler);
     }
@@ -794,13 +779,14 @@ function startFactRotation() {
     return rotateInterval;
 }
 
+// FIXED: Simplified planet interaction handlers - NO DUPLICATE EVENT HANDLING
 function setupPlanetInteractionHandlers() {
-    console.log('Setting up SIMPLIFIED planet interaction handlers...');
+    console.log('Setting up FIXED planet interaction handlers...');
 
-    // Planet selection - UPDATE UI ONLY
+    // Planet selection - UPDATE UI ONLY (no actions)
     const planetSelectedHandler = function(event) {
         const planetData = event.detail.planet;
-        console.log('Planet selected:', planetData.name);
+        console.log('Planet selected UI update:', planetData.name);
 
         // Update interaction status
         const interactionStatus = document.getElementById('interaction-status');
@@ -824,19 +810,8 @@ function setupPlanetInteractionHandlers() {
     };
     trackHomeEventListener(document, 'planetSelected', planetSelectedHandler);
 
-    // Planet focus - SIMPLIFIED (no duplicate notifications)
-    const focusPlanetHandler = function(event) {
-        const planetName = event.detail.planet;
-        console.log('focusPlanet event received for:', planetName);
-
-        // SIMPLIFIED: Just delegate to the app (no additional notifications)
-        if (window.solarSystemApp && window.solarSystemApp.focusOnPlanet) {
-            window.solarSystemApp.focusOnPlanet(planetName);
-        } else {
-            console.warn('Cannot focus on planet - app not available');
-        }
-    };
-    trackHomeEventListener(document, 'focusPlanet', focusPlanetHandler);
+    // REMOVED: focusPlanet event handler to prevent cascading
+    // The ControlPanel now handles planet focusing directly
 
     // Planet deselection
     const planetDeselectedHandler = function() {
@@ -848,7 +823,7 @@ function setupPlanetInteractionHandlers() {
     };
     trackHomeEventListener(document, 'planetDeselected', planetDeselectedHandler);
 
-    console.log('✅ Planet interaction handlers setup complete');
+    console.log('✅ FIXED Planet interaction handlers setup complete (no event cascading)');
 }
 
 // UNIFIED: Single keyboard event handler that delegates to ControlPanel
@@ -906,5 +881,5 @@ function cleanupAllEventListeners() {
     console.log('✅ All event listeners cleaned up');
 }
 
-console.log('SIMPLIFIED home.html script loaded - all keyboard handling delegated to ControlPanel');
+console.log('FIXED home.html script loaded - removed event cascading, all keyboard handling delegated to ControlPanel');
 {% endblock %}

@@ -1,14 +1,10 @@
 // static/js/ui/control-panel.js
-// FIXED: Consolidated keyboard handling with all functionality
+// FIXED: Prevent event cascading by using direct calls instead of events
 
 // Event listener cleanup tracking
-
-// let eventListenerCleanups = [];
-
 if (!('eventListenerCleanups' in globalThis)) {
   globalThis.eventListenerCleanups = [];
 }
-
 
 function trackEventListener(element, event, handler, options = {}) {
     element.addEventListener(event, handler, options);
@@ -240,7 +236,8 @@ window.ControlPanel = (function() {
             button.title = `Focus on ${planet.name} (${planet.key})`;
 
             button.addEventListener('click', () => {
-                focusOnPlanet(planet.name);
+                // FIXED: Direct call instead of event emission
+                directFocusOnPlanet(planet.name);
                 updateSelectedPlanetButton(button);
             });
 
@@ -278,10 +275,8 @@ window.ControlPanel = (function() {
         // Reset button
         if (controls.resetBtn) {
             const resetHandler = () => {
-                document.dispatchEvent(new CustomEvent('resetView'));
-                if (window.NotificationSystem) {
-                    window.NotificationSystem.showInfo('View reset to default position');
-                }
+                // FIXED: Direct call instead of event emission
+                directResetView();
             };
             trackEventListener(controls.resetBtn, 'click', resetHandler);
         }
@@ -309,7 +304,6 @@ window.ControlPanel = (function() {
 
         console.log('✅ Event listeners setup complete with tracking');
     }
-
 
     function togglePanel() {
         isCollapsed = !isCollapsed;
@@ -407,11 +401,21 @@ window.ControlPanel = (function() {
         });
     }
 
-    // function focusOnPlanet(planetName) {
-    //     document.dispatchEvent(new CustomEvent('focusPlanet', {
-    //         detail: { planet: planetName }
-    //     }));
-    // }
+    // Helper function to update UI elements
+    function updateSelectedPlanetInUI(planetName) {
+        // Update the selected planet display
+        if (controls.selectedPlanet) {
+            controls.selectedPlanet.textContent = planetName || 'None';
+        }
+
+        // Update the button selection state
+        if (controls.planetNavigation) {
+            const button = controls.planetNavigation.querySelector(`[data-planet="${planetName.toLowerCase()}"]`);
+            if (button) {
+                updateSelectedPlanetButton(button);
+            }
+        }
+    }
 
     function updateSelectedPlanetButton(selectedButton) {
         if (!controls.planetNavigation) return;
@@ -421,6 +425,49 @@ window.ControlPanel = (function() {
 
         if (selectedButton) {
             selectedButton.classList.add('selected');
+        }
+    }
+
+    // FIXED: Direct action functions (no event emission)
+    function directFocusOnPlanet(planetName) {
+        console.log('ControlPanel.directFocusOnPlanet:', planetName);
+
+        // DIRECT call without event emission to prevent cascading
+        if (window.solarSystemApp && window.solarSystemApp.interactionManager) {
+            // Find planet data
+            const planetData = window.solarSystemApp.planets.find(p => p.name === planetName);
+            if (planetData) {
+                // SINGLE direct call
+                window.solarSystemApp.interactionManager.focusAndFollowPlanet(planetData);
+
+                // Update UI directly (no events)
+                updateSelectedPlanetInUI(planetName);
+
+                // Single notification
+                if (window.NotificationSystem) {
+                    window.NotificationSystem.showInfo(`🎯 Focused on ${planetName}`, 1500);
+                }
+
+                console.log(`✅ Direct focus completed: ${planetName}`);
+            } else {
+                console.warn(`Planet data not found: ${planetName}`);
+            }
+        } else {
+            console.warn('Cannot focus - app or interaction manager not available');
+        }
+    }
+
+    function directResetView() {
+        console.log('ControlPanel.directResetView');
+
+        // DIRECT call to app
+        if (window.solarSystemApp && window.solarSystemApp.resetCameraView) {
+            window.solarSystemApp.resetCameraView();
+        }
+
+        // Show notification
+        if (window.NotificationSystem) {
+            window.NotificationSystem.showInfo('🔄 View reset to default position');
         }
     }
 
@@ -478,37 +525,6 @@ window.ControlPanel = (function() {
                     window.NotificationSystem.showError('Screenshot failed');
                 }
             }
-        }
-    }
-
-    // SIMPLIFIED: Direct planet focus without event cascading
-    function focusOnPlanet(planetName) {
-        console.log('ControlPanel.directPlanetFocus:', planetName);
-
-        // SINGLE action: Just tell the app to focus on the planet
-        if (window.solarSystemApp && window.solarSystemApp.interactionManager) {
-            // Find planet data
-            const planetData = window.solarSystemApp.planets.find(p => p.name === planetName);
-            if (planetData) {
-                // DIRECT call without event emission
-                window.solarSystemApp.interactionManager.focusAndFollowPlanet(planetData);
-
-                // Update UI directly
-                if (window.ControlPanel) {
-                    window.ControlPanel.updateSelectedPlanet(planetName);
-                }
-
-                // Single notification
-                if (window.NotificationSystem) {
-                    window.NotificationSystem.showInfo(`🎯 Focused on ${planetName}`, 1500);
-                }
-
-                console.log(`✅ Direct focus completed: ${planetName}`);
-            } else {
-                console.warn(`Planet data not found: ${planetName}`);
-            }
-        } else {
-            console.warn('Cannot focus - app or interaction manager not available');
         }
     }
 
@@ -576,7 +592,7 @@ window.ControlPanel = (function() {
 
     return {
         init: function() {
-            console.log('🎮 Initializing ControlPanel with consolidated keyboard handling...');
+            console.log('🎮 Initializing ControlPanel with FIXED event cascading...');
 
             // Wait a moment for DOM to be ready
             setTimeout(() => {
@@ -586,7 +602,7 @@ window.ControlPanel = (function() {
             }, 100);
 
             if (window.Helpers) {
-                window.Helpers.log('Enhanced Control Panel with consolidated controls initialized', 'debug');
+                window.Helpers.log('Enhanced Control Panel with FIXED cascading initialized', 'debug');
             }
         },
 
@@ -620,8 +636,8 @@ window.ControlPanel = (function() {
             return checkbox ? checkbox.checked : false;
         },
 
-        // Planet navigation
-        focusOnPlanet: focusOnPlanet,
+        // Planet navigation - FIXED: Use direct functions
+        focusOnPlanet: directFocusOnPlanet,
         selectPlanet: function(planetName) {
             if (!controls.planetNavigation) return;
             const button = controls.planetNavigation.querySelector(`[data-planet="${planetName.toLowerCase()}"]`);
@@ -638,9 +654,7 @@ window.ControlPanel = (function() {
         },
 
         updateSelectedPlanet: function(planetName) {
-            if (controls.selectedPlanet) {
-                controls.selectedPlanet.textContent = planetName || 'None';
-            }
+            updateSelectedPlanetInUI(planetName);
         },
 
         updateCameraDistance: function(distance) {
@@ -649,7 +663,7 @@ window.ControlPanel = (function() {
             }
         },
 
-        // CONSOLIDATED KEYBOARD SHORTCUTS - All functionality in one place
+        // KEYBOARD SHORTCUTS - FIXED: Use direct calls to prevent cascading
         handleKeyPress: function(event) {
             console.log('Handling key press:', event.code);
 
@@ -662,34 +676,33 @@ window.ControlPanel = (function() {
                     } else {
                         this.setSpeed(0);
                     }
-                    return true; // Handled
+                    return true;
 
                 case 'KeyR':
                     event.preventDefault();
                     event.stopPropagation();
-                    document.dispatchEvent(new CustomEvent('resetView'));
-                    return true; // Handled
+                    // FIXED: Direct call instead of event
+                    directResetView();
+                    return true;
 
                 case 'KeyH':
                     event.preventDefault();
                     event.stopPropagation();
-                    // Emit event for HeaderControls to handle
                     document.dispatchEvent(new CustomEvent('toggleHelp'));
-                    return true; // Handled
+                    return true;
 
                 case 'KeyI':
                     event.preventDefault();
                     event.stopPropagation();
                     togglePlanetInfo();
-                    return true; // Handled
+                    return true;
 
                 case 'KeyF':
                     if (!event.ctrlKey && !event.metaKey && !event.altKey) {
                         event.preventDefault();
                         event.stopPropagation();
-                        // Emit event for HeaderControls to handle fullscreen
                         document.dispatchEvent(new CustomEvent('toggleFullscreen'));
-                        return true; // Handled
+                        return true;
                     }
                     break;
 
@@ -697,14 +710,14 @@ window.ControlPanel = (function() {
                     event.preventDefault();
                     event.stopPropagation();
                     toggleLabels();
-                    return true; // Handled
+                    return true;
 
                 case 'KeyS':
                     if (event.ctrlKey || event.metaKey) {
                         event.preventDefault();
                         event.stopPropagation();
                         takeScreenshot();
-                        return true; // Handled
+                        return true;
                     }
                     break;
 
@@ -714,7 +727,7 @@ window.ControlPanel = (function() {
                         event.preventDefault();
                         event.stopPropagation();
                         performZoom('in');
-                        return true; // Handled
+                        return true;
                     }
                     break;
 
@@ -724,7 +737,7 @@ window.ControlPanel = (function() {
                         event.preventDefault();
                         event.stopPropagation();
                         performZoom('out');
-                        return true; // Handled
+                        return true;
                     }
                     break;
 
@@ -735,39 +748,38 @@ window.ControlPanel = (function() {
                         resetZoom();
                         return true;
                     } else {
-                        // SIMPLIFIED: Direct focus without cascading events
                         event.preventDefault();
                         event.stopPropagation();
-                        focusOnPlanet('Sun');
+                        // FIXED: Direct call instead of event
+                        directFocusOnPlanet('Sun');
                         return true;
                     }
-
 
                 case 'Escape':
                     event.preventDefault();
                     event.stopPropagation();
                     stopFollowing();
-                    return true; // Handled
+                    return true;
 
-            default:
-                if (event.code.startsWith('Digit')) {
-                    const digit = event.code.replace('Digit', '');
-                    if (controls.planetNavigation) {
-                        const button = controls.planetNavigation.querySelector(`[data-key="${digit}"]`);
-                        if (button) {
-                            event.preventDefault();
-                            event.stopPropagation();
-                            const planetName = button.textContent;
-                            // SIMPLIFIED: Direct focus without cascading events
-                            focusOnPlanet(planetName);
-                            updateSelectedPlanetButton(button);
-                            return true;
+                default:
+                    if (event.code.startsWith('Digit')) {
+                        const digit = event.code.replace('Digit', '');
+                        if (controls.planetNavigation) {
+                            const button = controls.planetNavigation.querySelector(`[data-key="${digit}"]`);
+                            if (button) {
+                                event.preventDefault();
+                                event.stopPropagation();
+                                const planetName = button.textContent;
+                                // FIXED: Direct call instead of event
+                                directFocusOnPlanet(planetName);
+                                updateSelectedPlanetButton(button);
+                                return true;
+                            }
                         }
                     }
-                }
-                break;
+                    break;
             }
-            return false; // Not handled
+            return false;
         },
 
         dispose: function() {
@@ -823,4 +835,4 @@ window.ControlPanel = (function() {
     };
 })();
 
-console.log('✅ CONSOLIDATED ControlPanel with unified keyboard handling loaded successfully');
+console.log('✅ FIXED ControlPanel with direct calls (no event cascading) loaded successfully');

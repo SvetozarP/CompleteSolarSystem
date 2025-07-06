@@ -1,5 +1,5 @@
 // static/js/solar-system/interaction-manager.js
-// Enhanced interaction manager for planet selection and information display - FIXED
+// FIXED: Prevent duplicate rapid focus calls with debouncing
 
 window.InteractionManager = (function() {
     'use strict';
@@ -37,6 +37,11 @@ window.InteractionManager = (function() {
             this.hoveredPlanet = null;
             this.lastClickTime = 0;
             this.doubleClickThreshold = 300; // ms
+
+            // FIXED: Add debouncing for focus calls
+            this.lastFocusTime = 0;
+            this.lastFocusedPlanet = null;
+            this.focusDebounceDelay = 500; // 500ms debounce
 
             // UI elements
             this.tooltip = null;
@@ -264,19 +269,8 @@ window.InteractionManager = (function() {
                     }
                     break;
 
-                // Number keys for planet selection
-                case 'Digit0':
-                case 'Digit1':
-                case 'Digit2':
-                case 'Digit3':
-                case 'Digit4':
-                case 'Digit5':
-                case 'Digit6':
-                case 'Digit7':
-                case 'Digit8':
-                case 'Digit9':
-                    this.handleNumberKeyPress(event.code);
-                    break;
+                // REMOVED: Number key handling to prevent conflicts with ControlPanel
+                // The ControlPanel should be the only handler for number keys
             }
         }
 
@@ -411,23 +405,50 @@ window.InteractionManager = (function() {
                 this.infoPanel.show(planetData);
             }
 
-            // Focus camera on planet with following
-            this.focusAndFollowPlanet(planetData);
-
-            // Emit planet selection event for UI updates
+            // REMOVED: Focus camera call from here to prevent conflicts
+            // Only emit selection event for UI updates
             document.dispatchEvent(new CustomEvent('planetSelected', {
                 detail: { planet: planetData }
             }));
 
             if (window.Helpers) {
-                window.Helpers.log(`Planet interaction: ${planetData.name}`, 'debug');
+                window.Helpers.log(`Planet selected (UI only): ${planetData.name}`, 'debug');
             }
         }
 
         /**
-         * Focus camera on planet and start following - UNIFIED IMPLEMENTATION
+         * Handle planet double click - focuses camera
+         */
+        handlePlanetDoubleClick(planetData) {
+            console.log('InteractionManager.handlePlanetDoubleClick:', planetData.name);
+
+            // Double-click focuses camera with debouncing
+            this.focusAndFollowPlanet(planetData);
+
+            if (window.Helpers) {
+                window.Helpers.log(`Double-clicked planet: ${planetData.name}`, 'debug');
+            }
+        }
+
+        /**
+         * FIXED: Focus camera on planet with debouncing to prevent duplicate calls
          */
         focusAndFollowPlanet(planetData) {
+            const currentTime = Date.now();
+
+            // FIXED: Debounce rapid focus calls
+            if (this.lastFocusedPlanet === planetData.name &&
+                currentTime - this.lastFocusTime < this.focusDebounceDelay) {
+                console.log(`⏭️ Ignoring duplicate focus call for ${planetData.name} (debounced)`);
+                return;
+            }
+
+            // Update debounce tracking
+            this.lastFocusTime = currentTime;
+            this.lastFocusedPlanet = planetData.name;
+
+            console.log(`🎯 Focusing and following: ${planetData.name}`);
+
             // Get app reference for camera controls
             const app = window.solarSystemApp;
             if (!app || !app.cameraControls) {
@@ -457,26 +478,7 @@ window.InteractionManager = (function() {
         }
 
         /**
-         * Handle planet double click
-         */
-        handlePlanetDoubleClick(planetData) {
-            console.log('InteractionManager.handlePlanetDoubleClick:', planetData.name);
-
-            // Double-click always focuses camera
-            this.focusAndFollowPlanet(planetData);
-
-            // Emit focus event
-            document.dispatchEvent(new CustomEvent('focusPlanet', {
-                detail: { planet: planetData.name }
-            }));
-
-            if (window.Helpers) {
-                window.Helpers.log(`Double-clicked planet: ${planetData.name}`, 'debug');
-            }
-        }
-
-        /**
-         * Select a planet
+         * Select a planet (UI only)
          */
         selectPlanet(planetData) {
             // Deselect previous planet
@@ -641,30 +643,6 @@ window.InteractionManager = (function() {
         }
 
         /**
-         * Handle number key presses for planet selection
-         */
-        handleNumberKeyPress(keyCode) {
-            const number = parseInt(keyCode.replace('Digit', ''));
-
-            // Get planet by display order
-            const planetArray = Array.from(this.planets.values());
-            const targetPlanet = planetArray.find(planetGroup => {
-                const planetData = planetGroup.userData.planetData;
-                return planetData.display_order === number;
-            });
-
-            if (targetPlanet) {
-                const planetData = targetPlanet.userData.planetData;
-                this.handlePlanetClick(planetData);
-
-                // Also focus camera on the planet
-                document.dispatchEvent(new CustomEvent('focusPlanet', {
-                    detail: { planet: planetData.name }
-                }));
-            }
-        }
-
-        /**
          * Update planet references
          */
         updatePlanets(planets) {
@@ -701,8 +679,18 @@ window.InteractionManager = (function() {
                 selectedPlanet: this.selectedPlanet?.name || null,
                 hoveredPlanet: this.hoveredPlanet?.name || null,
                 tooltipVisible: this.isTooltipVisible,
-                planetsCount: this.planets.size
+                planetsCount: this.planets.size,
+                lastFocusTime: this.lastFocusTime,
+                focusDebounceActive: this.lastFocusedPlanet !== null
             };
+        }
+
+        /**
+         * FIXED: Reset focus debouncing (useful for external calls)
+         */
+        resetFocusDebounce() {
+            this.lastFocusTime = 0;
+            this.lastFocusedPlanet = null;
         }
 
         /**
@@ -764,4 +752,4 @@ if (typeof module !== 'undefined' && module.exports) {
     module.exports = window.InteractionManager;
 }
 
-console.log('InteractionManager module loaded successfully');
+console.log('FIXED InteractionManager with debouncing loaded successfully');
