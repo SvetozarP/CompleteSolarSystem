@@ -398,32 +398,74 @@ window.InteractionManager = (function() {
         }
 
         /**
-         * Handle planet click
+         * Handle planet click - SINGLE SOURCE OF TRUTH
          */
         handlePlanetClick(planetData) {
+            console.log('InteractionManager.handlePlanetClick:', planetData.name);
+
             // Select the planet
             this.selectPlanet(planetData);
 
-            // FIXED: Use correct method name
+            // Show info panel
             if (this.infoPanel && this.infoPanel.show) {
                 this.infoPanel.show(planetData);
             }
 
-            // Emit planet selection event
+            // Focus camera on planet with following
+            this.focusAndFollowPlanet(planetData);
+
+            // Emit planet selection event for UI updates
             document.dispatchEvent(new CustomEvent('planetSelected', {
                 detail: { planet: planetData }
             }));
 
             if (window.Helpers) {
-                window.Helpers.log(`Planet selected: ${planetData.name}`, 'debug');
+                window.Helpers.log(`Planet interaction: ${planetData.name}`, 'debug');
             }
+        }
+
+        /**
+         * Focus camera on planet and start following - UNIFIED IMPLEMENTATION
+         */
+        focusAndFollowPlanet(planetData) {
+            // Get app reference for camera controls
+            const app = window.solarSystemApp;
+            if (!app || !app.cameraControls) {
+                console.warn('Cannot focus on planet - camera controls not available');
+                return;
+            }
+
+            // Get planet instance
+            const planetGroup = app.planetInstances.get(planetData.name);
+            if (!planetGroup) {
+                console.warn(`Planet instance not found: ${planetData.name}`);
+                return;
+            }
+
+            // Use camera controls to focus and follow
+            app.cameraControls.focusAndFollowPlanet(planetGroup, planetData);
+
+            // Update control panel
+            if (window.ControlPanel) {
+                window.ControlPanel.updateSelectedPlanet(planetData.name);
+
+                const distance = app.cameraControls.followDistance || 50;
+                window.ControlPanel.updateCameraDistance(distance);
+            }
+
+            console.log(`✅ Camera focused and following: ${planetData.name}`);
         }
 
         /**
          * Handle planet double click
          */
         handlePlanetDoubleClick(planetData) {
-            // Focus camera on planet
+            console.log('InteractionManager.handlePlanetDoubleClick:', planetData.name);
+
+            // Double-click always focuses camera
+            this.focusAndFollowPlanet(planetData);
+
+            // Emit focus event
             document.dispatchEvent(new CustomEvent('focusPlanet', {
                 detail: { planet: planetData.name }
             }));

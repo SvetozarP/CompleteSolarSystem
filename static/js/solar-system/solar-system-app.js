@@ -55,79 +55,44 @@ window.SolarSystemApp = class {
         this.planetLabels = null;
     }
 
-    // /**
-    //  * Enhanced focus on planet with following capability
-    //  */
-    // focusOnPlanet(planetName, shouldFollow = true) {
-    //     const planetGroup = this.planetInstances.get(planetName);
-    //     if (!planetGroup || !this.cameraControls) {
-    //         console.warn(`Planet ${planetName} not found or camera controls not available`);
-    //         return;
-    //     }
-    //
-    //     const planetData = this.planets.find(p => p.name === planetName);
-    //     if (!planetData) {
-    //         console.warn(`Planet data for ${planetName} not found`);
-    //         return;
-    //     }
-    //
-    //     if (shouldFollow) {
-    //         this.cameraControls.focusAndFollowPlanet(planetGroup, planetData);
-    //
-    //         // REMOVED: Duplicate notification - let the event handler in template show it
-    //         // if (window.NotificationSystem) {
-    //         //     window.NotificationSystem.showInfo(`📹 Following ${planetName}`);
-    //         // }
-    //     } else {
-    //         const planetPosition = planetGroup.position;
-    //         const planetSize = this.planetFactory?.calculateScaledSize(planetData) || 1;
-    //         const viewDistance = Math.max(planetSize * 8, 10);
-    //
-    //         this.cameraControls.focusOn(planetPosition, viewDistance);
-    //
-    //         // REMOVED: Duplicate notification - let the event handler in template show it
-    //         // if (window.NotificationSystem) {
-    //         //     window.NotificationSystem.showInfo(`🎯 Focused on ${planetName}`);
-    //         // }
-    //     }
-    //
-    //     if (window.ControlPanel) {
-    //         window.ControlPanel.updateSelectedPlanet(planetName);
-    //         window.ControlPanel.updateCameraDistance(this.cameraControls.followDistance || 50);
-    //     }
-    // }
 
     /**
-     * Focus on planet with following (simplified - always follows)
+     * SIMPLIFIED: Focus on planet (always follows) - delegates to interaction manager
      */
     focusOnPlanet(planetName) {
         console.log('SolarSystemApp.focusOnPlanet called for:', planetName);
 
-        const planetGroup = this.planetInstances.get(planetName);
-        if (!planetGroup || !this.cameraControls) {
-            console.warn(`Planet ${planetName} not found or camera controls not available`);
-            return;
+        // DELEGATE to interaction manager instead of handling directly
+        if (this.interactionManager) {
+            // Find planet data
+            const planetData = this.planets.find(p => p.name === planetName);
+            if (!planetData) {
+                console.warn(`Planet data for ${planetName} not found`);
+                return;
+            }
+
+            // Let interaction manager handle the focus
+            this.interactionManager.handlePlanetClick(planetData);
+
+            // Update UI
+            if (window.ControlPanel) {
+                window.ControlPanel.updateSelectedPlanet(planetName);
+
+                // Calculate distance for UI display
+                const planetGroup = this.planetInstances.get(planetName);
+                if (planetGroup && this.cameraControls) {
+                    const distance = this.cameraControls.followDistance ||
+                                   this.cameraControls.getDistance() || 50;
+                    window.ControlPanel.updateCameraDistance(distance);
+                }
+            }
+        } else {
+            console.warn('Interaction manager not available for planet focus');
         }
-
-        const planetData = this.planets.find(p => p.name === planetName);
-        if (!planetData) {
-            console.warn(`Planet data for ${planetName} not found`);
-            return;
-        }
-
-        // Always follow planets (remove the option for non-following focus)
-        this.cameraControls.focusAndFollowPlanet(planetGroup, planetData);
-
-        if (window.ControlPanel) {
-            window.ControlPanel.updateSelectedPlanet(planetName);
-            window.ControlPanel.updateCameraDistance(this.cameraControls.followDistance || 50);
-        }
-
-        // NO notification here - let the event handler show it to avoid duplicates
     }
 
     /**
-     * Stop following the current planet
+     * SIMPLIFIED: Stop following planet - delegate to camera controls
      */
     stopFollowingPlanet() {
         if (this.cameraControls && this.cameraControls.IsFollowing) {
@@ -144,7 +109,7 @@ window.SolarSystemApp = class {
     }
 
     /**
-     * Enhanced reset camera view that stops following
+     * SIMPLIFIED: Reset camera view - delegate to camera controls
      */
     resetCameraView() {
         if (this.cameraControls) {
@@ -164,7 +129,7 @@ window.SolarSystemApp = class {
     }
 
     /**
-     * Toggle between following and static focus for current planet
+     * SIMPLIFIED: Toggle planet following - delegate to interaction manager
      */
     togglePlanetFollowing() {
         if (!this.cameraControls) return;
@@ -172,9 +137,8 @@ window.SolarSystemApp = class {
         if (this.cameraControls.IsFollowing) {
             this.stopFollowingPlanet();
         } else {
-            const interactionManager = this.interactionManager;
-            if (interactionManager && interactionManager.SelectedPlanet) {
-                this.focusOnPlanet(interactionManager.SelectedPlanet.name, true);
+            if (this.interactionManager && this.interactionManager.SelectedPlanet) {
+                this.focusOnPlanet(this.interactionManager.SelectedPlanet.name);
             } else {
                 if (window.NotificationSystem) {
                     window.NotificationSystem.showWarning('No planet selected to follow');

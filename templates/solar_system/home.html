@@ -740,37 +740,53 @@ function startFactRotation() {
 }
 
 function setupPlanetInteractionHandlers() {
-    console.log('Setting up planet interaction handlers...');
+    console.log('Setting up SIMPLIFIED planet interaction handlers...');
 
-    // Enhanced planet selection
+    // Planet selection - UPDATE UI ONLY
     document.addEventListener('planetSelected', function(event) {
         const planetData = event.detail.planet;
+        console.log('Planet selected:', planetData.name);
 
-        // Update UI
+        // Update interaction status
         const interactionStatus = document.getElementById('interaction-status');
         if (interactionStatus) {
             interactionStatus.textContent = planetData.name;
             interactionStatus.style.color = '#4a9eff';
         }
 
+        // Update moon count if available
         if (planetData.moon_count !== undefined) {
             const totalMoons = document.getElementById('total-moons');
             if (totalMoons) {
                 totalMoons.textContent = planetData.moon_count;
             }
         }
+
+        // Show notification
+        if (window.NotificationSystem) {
+            window.NotificationSystem.showInfo(`🪐 Selected ${planetData.name}`, 2000);
+        }
     });
 
-    // Enhanced planet focus
+    // Planet focus - DELEGATE TO APP
     document.addEventListener('focusPlanet', function(event) {
         const planetName = event.detail.planet;
         console.log('focusPlanet event received for:', planetName);
 
+        // SIMPLIFIED: Just delegate to the app
         if (window.solarSystemApp && window.solarSystemApp.focusOnPlanet) {
             window.solarSystemApp.focusOnPlanet(planetName);
+
+            // Show focus notification
+            if (window.NotificationSystem) {
+                window.NotificationSystem.showInfo(`🎯 Focusing on ${planetName}`, 2000);
+            }
+        } else {
+            console.warn('Cannot focus on planet - app not available');
         }
     });
 
+    // Planet deselection
     document.addEventListener('planetDeselected', function() {
         const interactionStatus = document.getElementById('interaction-status');
         if (interactionStatus) {
@@ -778,6 +794,8 @@ function setupPlanetInteractionHandlers() {
             interactionStatus.style.color = '#10b981';
         }
     });
+
+    console.log('✅ Planet interaction handlers setup complete');
 }
 
 // UNIFIED: Single keyboard event handler that delegates to ControlPanel
