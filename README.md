@@ -7,6 +7,16 @@ A comprehensive 3D educational astronomy application built with Django and Three
 ![Three.js](https://img.shields.io/badge/Three.js-r128-orange)
 ![Python](https://img.shields.io/badge/Python-3.8+-green)
 
+
+![image](https://github.com/user-attachments/assets/d98587dc-7a39-466a-a3df-721ebe776622)
+
+
+![image](https://github.com/user-attachments/assets/c2304ab3-d9d3-4750-ac48-dd546d9f75a4)
+
+
+![image](https://github.com/user-attachments/assets/affd3b3a-b594-4b80-bad0-d096fd8a0951)
+
+
 ## ✨ Features
 
 ### 🎯 Interactive 3D Visualization
