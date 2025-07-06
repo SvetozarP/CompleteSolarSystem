@@ -407,11 +407,11 @@ window.ControlPanel = (function() {
         });
     }
 
-    function focusOnPlanet(planetName) {
-        document.dispatchEvent(new CustomEvent('focusPlanet', {
-            detail: { planet: planetName }
-        }));
-    }
+    // function focusOnPlanet(planetName) {
+    //     document.dispatchEvent(new CustomEvent('focusPlanet', {
+    //         detail: { planet: planetName }
+    //     }));
+    // }
 
     function updateSelectedPlanetButton(selectedButton) {
         if (!controls.planetNavigation) return;
@@ -478,6 +478,37 @@ window.ControlPanel = (function() {
                     window.NotificationSystem.showError('Screenshot failed');
                 }
             }
+        }
+    }
+
+    // SIMPLIFIED: Direct planet focus without event cascading
+    function focusOnPlanet(planetName) {
+        console.log('ControlPanel.directPlanetFocus:', planetName);
+
+        // SINGLE action: Just tell the app to focus on the planet
+        if (window.solarSystemApp && window.solarSystemApp.interactionManager) {
+            // Find planet data
+            const planetData = window.solarSystemApp.planets.find(p => p.name === planetName);
+            if (planetData) {
+                // DIRECT call without event emission
+                window.solarSystemApp.interactionManager.focusAndFollowPlanet(planetData);
+
+                // Update UI directly
+                if (window.ControlPanel) {
+                    window.ControlPanel.updateSelectedPlanet(planetName);
+                }
+
+                // Single notification
+                if (window.NotificationSystem) {
+                    window.NotificationSystem.showInfo(`🎯 Focused on ${planetName}`, 1500);
+                }
+
+                console.log(`✅ Direct focus completed: ${planetName}`);
+            } else {
+                console.warn(`Planet data not found: ${planetName}`);
+            }
+        } else {
+            console.warn('Cannot focus - app or interaction manager not available');
         }
     }
 
@@ -702,16 +733,15 @@ window.ControlPanel = (function() {
                         event.preventDefault();
                         event.stopPropagation();
                         resetZoom();
-                        return true; // Handled
+                        return true;
                     } else {
-                        // Focus on Sun
+                        // SIMPLIFIED: Direct focus without cascading events
                         event.preventDefault();
                         event.stopPropagation();
                         focusOnPlanet('Sun');
-                        const button = controls.planetNavigation?.querySelector(`[data-key="0"]`);
-                        if (button) updateSelectedPlanetButton(button);
-                        return true; // Handled
+                        return true;
                     }
+
 
                 case 'Escape':
                     event.preventDefault();
@@ -719,22 +749,23 @@ window.ControlPanel = (function() {
                     stopFollowing();
                     return true; // Handled
 
-                default:
-                    if (event.code.startsWith('Digit')) {
-                        const digit = event.code.replace('Digit', '');
-                        if (controls.planetNavigation) {
-                            const button = controls.planetNavigation.querySelector(`[data-key="${digit}"]`);
-                            if (button) {
-                                event.preventDefault();
-                                event.stopPropagation();
-                                const planetName = button.textContent;
-                                focusOnPlanet(planetName);
-                                updateSelectedPlanetButton(button);
-                                return true; // Handled
-                            }
+            default:
+                if (event.code.startsWith('Digit')) {
+                    const digit = event.code.replace('Digit', '');
+                    if (controls.planetNavigation) {
+                        const button = controls.planetNavigation.querySelector(`[data-key="${digit}"]`);
+                        if (button) {
+                            event.preventDefault();
+                            event.stopPropagation();
+                            const planetName = button.textContent;
+                            // SIMPLIFIED: Direct focus without cascading events
+                            focusOnPlanet(planetName);
+                            updateSelectedPlanetButton(button);
+                            return true;
                         }
                     }
-                    break;
+                }
+                break;
             }
             return false; // Not handled
         },

@@ -824,19 +824,14 @@ function setupPlanetInteractionHandlers() {
     };
     trackHomeEventListener(document, 'planetSelected', planetSelectedHandler);
 
-    // Planet focus - DELEGATE TO APP
+    // Planet focus - SIMPLIFIED (no duplicate notifications)
     const focusPlanetHandler = function(event) {
         const planetName = event.detail.planet;
         console.log('focusPlanet event received for:', planetName);
 
-        // SIMPLIFIED: Just delegate to the app
+        // SIMPLIFIED: Just delegate to the app (no additional notifications)
         if (window.solarSystemApp && window.solarSystemApp.focusOnPlanet) {
             window.solarSystemApp.focusOnPlanet(planetName);
-
-            // Show focus notification
-            if (window.NotificationSystem) {
-                window.NotificationSystem.showInfo(`🎯 Focusing on ${planetName}`, 2000);
-            }
         } else {
             console.warn('Cannot focus on planet - app not available');
         }

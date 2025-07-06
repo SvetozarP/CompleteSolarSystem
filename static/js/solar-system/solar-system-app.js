@@ -60,34 +60,15 @@ window.SolarSystemApp = class {
      * SIMPLIFIED: Focus on planet (always follows) - delegates to interaction manager
      */
     focusOnPlanet(planetName) {
-        console.log('SolarSystemApp.focusOnPlanet called for:', planetName);
+        console.log('SolarSystemApp.focusOnPlanet - DELEGATING to interaction manager:', planetName);
 
-        // DELEGATE to interaction manager instead of handling directly
+        // SIMPLIFIED: Just delegate to interaction manager
         if (this.interactionManager) {
-            // Find planet data
             const planetData = this.planets.find(p => p.name === planetName);
-            if (!planetData) {
-                console.warn(`Planet data for ${planetName} not found`);
-                return;
+            if (planetData) {
+                // SINGLE call - no cascading
+                this.interactionManager.focusAndFollowPlanet(planetData);
             }
-
-            // Let interaction manager handle the focus
-            this.interactionManager.handlePlanetClick(planetData);
-
-            // Update UI
-            if (window.ControlPanel) {
-                window.ControlPanel.updateSelectedPlanet(planetName);
-
-                // Calculate distance for UI display
-                const planetGroup = this.planetInstances.get(planetName);
-                if (planetGroup && this.cameraControls) {
-                    const distance = this.cameraControls.followDistance ||
-                                   this.cameraControls.getDistance() || 50;
-                    window.ControlPanel.updateCameraDistance(distance);
-                }
-            }
-        } else {
-            console.warn('Interaction manager not available for planet focus');
         }
     }
 
