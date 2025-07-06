@@ -782,24 +782,26 @@ function setupPlanetInteractionHandlers() {
 
 // UNIFIED: Single keyboard event handler that delegates to ControlPanel
 function setupUnifiedKeyboardHandling() {
-    console.log('Setting up UNIFIED keyboard handling...');
+    console.log('Setting up UNIFIED keyboard handling - delegating to ControlPanel...');
 
     document.addEventListener('keydown', function(event) {
-        // UNIFIED: Let ControlPanel handle ALL keyboard shortcuts
+        // SINGLE SOURCE OF TRUTH: Only ControlPanel handles keyboard events
         if (window.ControlPanel && window.ControlPanel.handleKeyPress) {
             const handled = window.ControlPanel.handleKeyPress(event);
 
             if (handled) {
-                console.log('Key handled by ControlPanel:', event.code);
-                return; // Stop here if handled
+                // Event was handled by ControlPanel, we're done
+                return;
             }
         }
 
-        // If not handled by ControlPanel, log it
-        console.log('Key not handled:', event.code);
+        // Log unhandled keys for debugging (remove in production)
+        if (window.SolarSystemConfig?.debug) {
+            console.log('Unhandled key:', event.code);
+        }
     });
 
-    console.log('Unified keyboard handling setup complete');
+    console.log('✅ Keyboard handling delegated to ControlPanel');
 }
 
 console.log('SIMPLIFIED home.html script loaded - all keyboard handling delegated to ControlPanel');

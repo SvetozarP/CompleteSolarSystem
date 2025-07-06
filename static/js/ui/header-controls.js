@@ -14,10 +14,24 @@ window.HeaderControls = (function() {
         setupSystemInfoButton();
         createModals();
         setupKeyboardShortcuts();
+        setupControlPanelEvents();
 
         if (window.Helpers) {
             window.Helpers.log('Header controls initialized', 'debug');
         }
+    }
+
+    function setupControlPanelEvents() {
+    // Listen for events from ControlPanel instead of direct keyboard handling
+       document.addEventListener('toggleHelp', () => {
+            toggleHelpModal();
+        });
+
+        document.addEventListener('toggleFullscreen', () => {
+            toggleFullscreen();
+        });
+
+        console.log('✅ Header controls: event listeners for ControlPanel setup');
     }
 
     function setupHelpButton() {
@@ -51,6 +65,8 @@ window.HeaderControls = (function() {
         createHelpModal();
         createSystemInfoModal();
     }
+
+
 
     function createHelpModal() {
         // Remove existing help modal if any
@@ -286,30 +302,25 @@ window.HeaderControls = (function() {
     }
 
     function setupKeyboardShortcuts() {
+        // REMOVED: Duplicate keyboard handlers - ControlPanel handles these now
+        // Only keep F11 detection for UI updates and Escape for emergency modal close
+
         document.addEventListener('keydown', (event) => {
             switch (event.code) {
-                case 'KeyH':
-                    if (!event.ctrlKey && !event.metaKey && !event.altKey) {
-                        event.preventDefault();
-                        toggleHelpModal();
-                    }
-                    break;
-                case 'KeyF':
-                    if (!event.ctrlKey && !event.metaKey && !event.altKey) {
-                        event.preventDefault();
-                        toggleFullscreen();
-                    }
+                case 'F11':
+                    // Let F11 work normally but update our button state
+                    setTimeout(updateFullscreenButton, 100);
                     break;
                 case 'Escape':
-                    event.preventDefault();
-                    hideAllModals();
-                    break;
-                case 'F11':
-                    // Let F11 work normally but update our button
-                    setTimeout(updateFullscreenButton, 100);
+                    // Emergency fallback for modal closing (ControlPanel handles primary)
+                    if (event.target.closest('.modal, .info-panel')) {
+                        hideAllModals();
+                    }
                     break;
             }
         });
+
+        console.log('✅ Header controls: minimal keyboard handling setup');
     }
 
     function toggleHelpModal() {

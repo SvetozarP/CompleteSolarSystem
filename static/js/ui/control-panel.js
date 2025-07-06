@@ -287,6 +287,7 @@ window.ControlPanel = (function() {
         console.log('Event listeners setup complete');
     }
 
+
     function togglePanel() {
         isCollapsed = !isCollapsed;
         if (controls.panel) {
@@ -618,6 +619,7 @@ window.ControlPanel = (function() {
                 case 'KeyH':
                     event.preventDefault();
                     event.stopPropagation();
+                    // Emit event for HeaderControls to handle
                     document.dispatchEvent(new CustomEvent('toggleHelp'));
                     return true; // Handled
 
@@ -631,7 +633,8 @@ window.ControlPanel = (function() {
                     if (!event.ctrlKey && !event.metaKey && !event.altKey) {
                         event.preventDefault();
                         event.stopPropagation();
-                        // togglePlanetFollowing();
+                        // Emit event for HeaderControls to handle fullscreen
+                        document.dispatchEvent(new CustomEvent('toggleFullscreen'));
                         return true; // Handled
                     }
                     break;

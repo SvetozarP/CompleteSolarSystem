@@ -158,10 +158,6 @@
                 <div class="control-section">
                     <h4>Animation</h4>
                     <div class="control-group">
-                        <button id="play-pause-btn" class="control-btn primary">
-                            <span id="play-pause-icon">⏸️</span>
-                            <span id="play-pause-text">Pause</span>
-                        </button>
                         <button id="reset-btn" class="control-btn secondary">
                             <span>🔄</span>
                             Reset View
@@ -171,11 +167,9 @@
                     <div class="control-group">
                         <label for="speed-slider">Speed: <span id="speed-value">1.0x</span></label>
                         <input type="range" id="speed-slider" min="0" max="5" step="0.1" value="1.0" class="slider">
-                        <div class="speed-presets">
-                            <button class="speed-btn" data-speed="0.5">0.5x</button>
-                            <button class="speed-btn active" data-speed="1.0">1x</button>
-                            <button class="speed-btn" data-speed="2.0">2x</button>
-                            <button class="speed-btn" data-speed="5.0">5x</button>
+                        <!-- Speed buttons will be dynamically created by control-panel.js -->
+                        <div class="speed-presets" id="speed-presets-container">
+                            <!-- Buttons created dynamically -->
                         </div>
                     </div>
                 </div>
