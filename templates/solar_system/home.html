@@ -402,6 +402,9 @@ function completeLoading() {
 function setupPostInitializationFeatures() {
     console.log('Setting up post-initialization features...');
 
+    // Setup window cleanup (ADD THIS LINE)
+    setupWindowCleanup();
+
     // Show info cards after a delay
     setTimeout(() => {
         const infoCards = document.getElementById('info-cards');
@@ -420,6 +423,7 @@ function setupPostInitializationFeatures() {
 
     // Start rotating facts
     startFactRotation();
+
 
     // Setup canvas controls and unified keyboard handling
     setupCanvasControls();
@@ -472,6 +476,40 @@ function handleInitializationError(error) {
 // Start the initialization process immediately
 initializeSolarSystemApp();
 
+
+    let homeEventCleanups = [];
+
+    function trackHomeEventListener(element, event, handler, options = {}) {
+        element.addEventListener(event, handler, options);
+
+        const cleanup = () => element.removeEventListener(event, handler, options);
+        homeEventCleanups.push(cleanup);
+
+        return cleanup;
+    }
+
+    function setupWindowCleanup() {
+        // Clean up on page unload
+        const unloadHandler = () => {
+            console.log('🧹 Page unloading - cleaning up event listeners...');
+            cleanupAllEventListeners();
+        };
+
+        trackHomeEventListener(window, 'beforeunload', unloadHandler);
+
+        // Clean up on visibility change (tab switch)
+        const visibilityHandler = () => {
+            if (document.hidden) {
+                console.log('👁️ Page hidden - reducing activity');
+                // Could pause animations or reduce activity here
+            }
+        };
+
+        trackHomeEventListener(document, 'visibilitychange', visibilityHandler);
+
+        console.log('✅ Window cleanup handlers setup');
+    }
+
 // Canvas controls setup
 function setupCanvasControls() {
     console.log('Setting up canvas controls...');
@@ -490,7 +528,8 @@ function setupZoomControls() {
     const zoomResetBtn = document.getElementById('zoom-reset');
 
     if (zoomInBtn) {
-        zoomInBtn.addEventListener('click', () => {
+<!--        zoomInBtn.addEventListener('click', () => {-->
+        const zoomInHandler = () => {
             console.log('Zoom in clicked');
 
             if (window.solarSystemApp && window.solarSystemApp.cameraControls) {
@@ -526,11 +565,13 @@ function setupZoomControls() {
                     window.NotificationSystem.showInfo('🔍 Zoomed In', 1000);
                 }
             }
-        });
+        };
+        trackHomeEventListener(zoomInBtn, 'click', zoomInHandler);
     }
 
     if (zoomOutBtn) {
-        zoomOutBtn.addEventListener('click', () => {
+<!--        zoomOutBtn.addEventListener('click', () => {-->
+        const zoomOutHandler = () => {
             console.log('Zoom out clicked');
 
             if (window.solarSystemApp && window.solarSystemApp.cameraControls) {
@@ -566,17 +607,20 @@ function setupZoomControls() {
                     window.NotificationSystem.showInfo('🔍 Zoomed Out', 1000);
                 }
             }
-        });
+        };
+        trackHomeEventListener(zoomOutBtn, 'click', zoomOutHandler);
     }
 
     if (zoomResetBtn) {
-        zoomResetBtn.addEventListener('click', () => {
+<!--        zoomResetBtn.addEventListener('click', () => {-->
+        const zoomResetHandler = () => {
             console.log('Zoom reset clicked');
 
             if (window.solarSystemApp && window.solarSystemApp.resetCameraView) {
                 window.solarSystemApp.resetCameraView();
             }
-        });
+        };
+        trackHomeEventListener(zoomResetBtn, 'click', zoomResetHandler);
     }
 }
 
@@ -587,7 +631,7 @@ function setupViewControls() {
     const viewAngledBtn = document.getElementById('view-angled');
 
     if (viewTopBtn) {
-        viewTopBtn.addEventListener('click', () => {
+        const viewTopHandler = () => {
             if (window.solarSystemApp && window.solarSystemApp.cameraControls) {
                 const controls = window.solarSystemApp.cameraControls;
                 controls.stopFollowing();
@@ -599,11 +643,13 @@ function setupViewControls() {
                     window.NotificationSystem.showInfo('⬆ Top View', 1500);
                 }
             }
-        });
+        };
+        trackHomeEventListener(viewTopBtn, 'click', viewTopHandler);
     }
 
     if (viewSideBtn) {
-        viewSideBtn.addEventListener('click', () => {
+<!--        viewSideBtn.addEventListener('click', () => {-->
+        const viewSideBtnHandler = () => {
             if (window.solarSystemApp && window.solarSystemApp.cameraControls) {
                 const controls = window.solarSystemApp.cameraControls;
                 controls.stopFollowing();
@@ -615,11 +661,13 @@ function setupViewControls() {
                     window.NotificationSystem.showInfo('➡ Side View', 1500);
                 }
             }
-        });
+        };
+        trackHomeEventListener(viewSideBtn, 'click', viewSideBtnHandler);
     }
 
     if (viewAngledBtn) {
-        viewAngledBtn.addEventListener('click', () => {
+<!--        viewAngledBtn.addEventListener('click', () => {-->
+        const viewAngledBtnHandler = () => {
             if (window.solarSystemApp && window.solarSystemApp.cameraControls) {
                 const controls = window.solarSystemApp.cameraControls;
                 controls.stopFollowing();
@@ -631,7 +679,8 @@ function setupViewControls() {
                     window.NotificationSystem.showInfo('⬈ Angled View', 1500);
                 }
             }
-        });
+        };
+        trackHomeEventListener(viewAngledBtn, 'click', viewAngledBtnHandler);
     }
 }
 
@@ -640,7 +689,8 @@ function setupUtilityControls() {
     // Screenshot button
     const screenshotBtn = document.getElementById('screenshot-btn');
     if (screenshotBtn) {
-        screenshotBtn.addEventListener('click', () => {
+<!--        screenshotBtn.addEventListener('click', () => {-->
+        const screenshotBtnHandler = () => {
             console.log('Screenshot button clicked');
 
             if (window.solarSystemApp && window.solarSystemApp.sceneManager) {
@@ -659,13 +709,15 @@ function setupUtilityControls() {
                     }
                 }
             }
-        });
+        };
+        trackHomeEventListener(screenshotBtn, 'click', screenshotBtnHandler);
     }
 
     // Toggle labels button
     const toggleLabelsBtn = document.getElementById('toggle-labels');
     if (toggleLabelsBtn) {
-        toggleLabelsBtn.addEventListener('click', () => {
+<!--        toggleLabelsBtn.addEventListener('click', () => {-->
+        const toggleLabelsBtnHandler = () => {
             console.log('Toggle labels clicked');
 
             if (window.solarSystemApp && window.solarSystemApp.planetLabels) {
@@ -684,18 +736,21 @@ function setupUtilityControls() {
 <!--                    );-->
 <!--                }-->
             }
-        });
+        };
+        trackHomeEventListener(toggleLabelsBtn, 'click', toggleLabelsBtnHandler);
     }
 
     // Focus on Sun button
     const focusSunBtn = document.getElementById('focus-sun');
     if (focusSunBtn) {
-        focusSunBtn.addEventListener('click', () => {
+<!--        focusSunBtn.addEventListener('click', () => {-->
+        const focusSunBtnHandler = () => {
             console.log('Focus Sun clicked');
             document.dispatchEvent(new CustomEvent('focusPlanet', {
                 detail: { planet: 'Sun', follow: false }
             }));
-        });
+        };
+        trackHomeEventListener(focusSunBtn, 'click', focusSunBtnHandler);
     }
 }
 
@@ -743,7 +798,7 @@ function setupPlanetInteractionHandlers() {
     console.log('Setting up SIMPLIFIED planet interaction handlers...');
 
     // Planet selection - UPDATE UI ONLY
-    document.addEventListener('planetSelected', function(event) {
+    const planetSelectedHandler = function(event) {
         const planetData = event.detail.planet;
         console.log('Planet selected:', planetData.name);
 
@@ -766,10 +821,11 @@ function setupPlanetInteractionHandlers() {
         if (window.NotificationSystem) {
             window.NotificationSystem.showInfo(`🪐 Selected ${planetData.name}`, 2000);
         }
-    });
+    };
+    trackHomeEventListener(document, 'planetSelected', planetSelectedHandler);
 
     // Planet focus - DELEGATE TO APP
-    document.addEventListener('focusPlanet', function(event) {
+    const focusPlanetHandler = function(event) {
         const planetName = event.detail.planet;
         console.log('focusPlanet event received for:', planetName);
 
@@ -784,16 +840,18 @@ function setupPlanetInteractionHandlers() {
         } else {
             console.warn('Cannot focus on planet - app not available');
         }
-    });
+    };
+    trackHomeEventListener(document, 'focusPlanet', focusPlanetHandler);
 
     // Planet deselection
-    document.addEventListener('planetDeselected', function() {
+    const planetDeselectedHandler = function() {
         const interactionStatus = document.getElementById('interaction-status');
         if (interactionStatus) {
             interactionStatus.textContent = 'Active';
             interactionStatus.style.color = '#10b981';
         }
-    });
+    };
+    trackHomeEventListener(document, 'planetDeselected', planetDeselectedHandler);
 
     console.log('✅ Planet interaction handlers setup complete');
 }
@@ -820,6 +878,37 @@ function setupUnifiedKeyboardHandling() {
     });
 
     console.log('✅ Keyboard handling delegated to ControlPanel');
+}
+
+// Global cleanup function
+function cleanupAllEventListeners() {
+    console.log('🧹 Cleaning up all home page event listeners...');
+
+    // Clean up home page event listeners
+    homeEventCleanups.forEach(cleanup => {
+        try {
+            cleanup();
+        } catch (error) {
+            console.warn('Error cleaning up home event listener:', error);
+        }
+    });
+    homeEventCleanups = [];
+
+    // Clean up component event listeners
+    if (window.ControlPanel && window.ControlPanel.dispose) {
+        window.ControlPanel.dispose();
+    }
+
+    if (window.HeaderControls && window.HeaderControls.dispose) {
+        window.HeaderControls.dispose();
+    }
+
+    // Clean up solar system app
+    if (window.solarSystemApp && window.solarSystemApp.dispose) {
+        window.solarSystemApp.dispose();
+    }
+
+    console.log('✅ All event listeners cleaned up');
 }
 
 console.log('SIMPLIFIED home.html script loaded - all keyboard handling delegated to ControlPanel');

@@ -1,6 +1,17 @@
 // static/js/ui/header-controls.js
 // Header navigation button functionality - FIXED to match planet info modal exactly
 
+let headerEventCleanups = [];
+
+function trackHeaderEventListener(element, event, handler, options = {}) {
+    element.addEventListener(event, handler, options);
+
+    const cleanup = () => element.removeEventListener(event, handler, options);
+    headerEventCleanups.push(cleanup);
+
+    return cleanup;
+}
+
 window.HeaderControls = (function() {
     'use strict';
 
@@ -22,12 +33,11 @@ window.HeaderControls = (function() {
     }
 
     function setupControlPanelEvents() {
-    // Listen for events from ControlPanel instead of direct keyboard handling
-       document.addEventListener('toggleHelp', () => {
+        trackHeaderEventListener(document, 'toggleHelp', () => {
             toggleHelpModal();
         });
 
-        document.addEventListener('toggleFullscreen', () => {
+        trackHeaderEventListener(document, 'toggleFullscreen', () => {
             toggleFullscreen();
         });
 
@@ -37,27 +47,27 @@ window.HeaderControls = (function() {
     function setupHelpButton() {
         const helpBtn = document.getElementById('help-btn');
         if (helpBtn) {
-            helpBtn.addEventListener('click', toggleHelpModal);
+            trackHeaderEventListener(helpBtn, 'click', toggleHelpModal);
         }
     }
 
     function setupFullscreenButton() {
         const fullscreenBtn = document.getElementById('fullscreen-btn');
         if (fullscreenBtn) {
-            fullscreenBtn.addEventListener('click', toggleFullscreen);
+            trackHeaderEventListener(fullscreenBtn, 'click', toggleFullscreen);
         }
 
-        // Listen for fullscreen change events
-        document.addEventListener('fullscreenchange', updateFullscreenButton);
-        document.addEventListener('webkitfullscreenchange', updateFullscreenButton);
-        document.addEventListener('mozfullscreenchange', updateFullscreenButton);
-        document.addEventListener('MSFullscreenChange', updateFullscreenButton);
+        // Listen for fullscreen change events with tracking
+        trackHeaderEventListener(document, 'fullscreenchange', updateFullscreenButton);
+        trackHeaderEventListener(document, 'webkitfullscreenchange', updateFullscreenButton);
+        trackHeaderEventListener(document, 'mozfullscreenchange', updateFullscreenButton);
+        trackHeaderEventListener(document, 'MSFullscreenChange', updateFullscreenButton);
     }
 
     function setupSystemInfoButton() {
         const infoBtn = document.getElementById('info-btn');
         if (infoBtn) {
-            infoBtn.addEventListener('click', toggleSystemInfoModal);
+            trackHeaderEventListener(infoBtn, 'click', toggleSystemInfoModal);
         }
     }
 
@@ -302,24 +312,20 @@ window.HeaderControls = (function() {
     }
 
     function setupKeyboardShortcuts() {
-        // REMOVED: Duplicate keyboard handlers - ControlPanel handles these now
-        // Only keep F11 detection for UI updates and Escape for emergency modal close
-
-        document.addEventListener('keydown', (event) => {
+        const keyboardHandler = (event) => {
             switch (event.code) {
                 case 'F11':
-                    // Let F11 work normally but update our button state
                     setTimeout(updateFullscreenButton, 100);
                     break;
                 case 'Escape':
-                    // Emergency fallback for modal closing (ControlPanel handles primary)
                     if (event.target.closest('.modal, .info-panel')) {
                         hideAllModals();
                     }
                     break;
             }
-        });
+        };
 
+        trackHeaderEventListener(document, 'keydown', keyboardHandler);
         console.log('✅ Header controls: minimal keyboard handling setup');
     }
 
@@ -626,7 +632,28 @@ window.HeaderControls = (function() {
         hideSystemInfoModal,
         toggleFullscreen,
         hideAllModals,
-        isFullscreen: () => isFullscreen
+        isFullscreen: () => isFullscreen,
+
+        dispose: function() {
+            console.log('🧹 Disposing HeaderControls and cleaning up event listeners...');
+
+            // Clean up all tracked event listeners
+            headerEventCleanups.forEach(cleanup => {
+                try {
+                    cleanup();
+                } catch (error) {
+                    console.warn('Error cleaning up header event listener:', error);
+                }
+            });
+            headerEventCleanups = [];
+
+            // Clear modal references
+            helpModal = null;
+            systemInfoModal = null;
+            isFullscreen = false;
+
+            console.log('✅ HeaderControls disposed successfully');
+        },
     };
 })();
 

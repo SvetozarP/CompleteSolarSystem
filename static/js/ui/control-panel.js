@@ -1,6 +1,25 @@
 // static/js/ui/control-panel.js
 // FIXED: Consolidated keyboard handling with all functionality
 
+// Event listener cleanup tracking
+
+// let eventListenerCleanups = [];
+
+if (!('eventListenerCleanups' in globalThis)) {
+  globalThis.eventListenerCleanups = [];
+}
+
+
+function trackEventListener(element, event, handler, options = {}) {
+    element.addEventListener(event, handler, options);
+
+    // Store cleanup function
+    const cleanup = () => element.removeEventListener(event, handler, options);
+    eventListenerCleanups.push(cleanup);
+
+    return cleanup;
+}
+
 window.ControlPanel = (function() {
     'use strict';
 
@@ -232,43 +251,46 @@ window.ControlPanel = (function() {
     function setupEventListeners() {
         // Collapse panel
         if (controls.collapseBtn) {
-            controls.collapseBtn.addEventListener('click', togglePanel);
+            trackEventListener(controls.collapseBtn, 'click', togglePanel);
         }
 
         // Speed slider
         if (controls.speedSlider) {
-            controls.speedSlider.addEventListener('input', (e) => {
+            const speedHandler = (e) => {
                 const value = parseFloat(e.target.value);
                 setSpeed(value);
-            });
+            };
+            trackEventListener(controls.speedSlider, 'input', speedHandler);
         }
 
         // Speed preset buttons - INCLUDING SPEED 0
         if (controls.speedButtons) {
             controls.speedButtons.forEach(btn => {
-                btn.addEventListener('click', () => {
+                const speedButtonHandler = () => {
                     const speed = parseFloat(btn.dataset.speed);
                     console.log(`Speed button clicked: ${speed}`);
                     setSpeedFromUI(speed);
-                });
+                };
+                trackEventListener(btn, 'click', speedButtonHandler);
             });
         }
 
         // Reset button
         if (controls.resetBtn) {
-            controls.resetBtn.addEventListener('click', () => {
+            const resetHandler = () => {
                 document.dispatchEvent(new CustomEvent('resetView'));
                 if (window.NotificationSystem) {
                     window.NotificationSystem.showInfo('View reset to default position');
                 }
-            });
+            };
+            trackEventListener(controls.resetBtn, 'click', resetHandler);
         }
 
         // Checkboxes
         Object.keys(controls.checkboxes).forEach(key => {
             const checkbox = controls.checkboxes[key];
             if (checkbox) {
-                checkbox.addEventListener('change', (e) => {
+                const checkboxHandler = (e) => {
                     const enabled = e.target.checked;
 
                     document.dispatchEvent(new CustomEvent('toggleFeature', {
@@ -280,11 +302,12 @@ window.ControlPanel = (function() {
                         const status = enabled ? 'enabled' : 'disabled';
                         window.NotificationSystem.showInfo(`${featureName} ${status}`);
                     }
-                });
+                };
+                trackEventListener(checkbox, 'change', checkboxHandler);
             }
         });
 
-        console.log('Event listeners setup complete');
+        console.log('✅ Event listeners setup complete with tracking');
     }
 
 
@@ -714,6 +737,27 @@ window.ControlPanel = (function() {
                     break;
             }
             return false; // Not handled
+        },
+
+        dispose: function() {
+            console.log('🧹 Disposing ControlPanel and cleaning up event listeners...');
+
+            // Clean up all tracked event listeners
+            eventListenerCleanups.forEach(cleanup => {
+                try {
+                    cleanup();
+                } catch (error) {
+                    console.warn('Error cleaning up event listener:', error);
+                }
+            });
+            eventListenerCleanups = [];
+
+            // Clear references
+            controls = {};
+            isCollapsed = false;
+            currentSpeed = 1.0;
+
+            console.log('✅ ControlPanel disposed successfully');
         },
 
         // State management
