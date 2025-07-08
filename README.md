@@ -39,6 +39,16 @@ A comprehensive 3D educational astronomy application built with Django and Three
 - **Toast notifications** for user feedback
 - **Keyboard shortcuts** for power users
 
+### Screenshots:
+
+![image](https://github.com/user-attachments/assets/9a93431a-8a73-40db-8cda-a29f56f7fae2)
+
+![image](https://github.com/user-attachments/assets/5d7a4d48-9b2e-43be-bf6d-bc43c7dcad71)
+
+![image](https://github.com/user-attachments/assets/1b5a0d70-baf7-4e3c-b64a-cd93d5aa2ea0)
+
+![image](https://github.com/user-attachments/assets/a98a2372-1360-4e38-a9ec-5ff5af8d7551)
+
 ## 🚀 Quick Start
 
 ### Prerequisites
