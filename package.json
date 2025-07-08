@@ -1,0 +1,27 @@
+{
+  "name": "solar-system-complete",
+  "version": "1.0.0",
+  "description": "A comprehensive 3D educational astronomy application built with Django and Three.js, featuring realistic planet rendering, orbital mechanics, and interactive controls.",
+  "main": "index.js",
+  "scripts": {
+    "test": "jest --verbose --colors",
+    "test:watch": "jest --watch --verbose --colors",
+    "test:coverage": "jest --coverage --colors"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "@babel/core": "^7.28.0",
+    "@babel/plugin-transform-modules-commonjs": "^7.27.1",
+    "@babel/preset-env": "^7.28.0",
+    "@testing-library/dom": "^10.4.0",
+    "@testing-library/jest-dom": "^6.6.3",
+    "@types/jest": "^30.0.0",
+    "babel-jest": "^30.0.4",
+    "jest": "^30.0.4",
+    "jest-environment-jsdom": "^30.0.4",
+    "jsdom": "^26.1.0",
+    "three": "^0.178.0"
+  }
+}
