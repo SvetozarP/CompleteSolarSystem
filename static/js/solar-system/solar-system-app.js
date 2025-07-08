@@ -1,7 +1,13 @@
-// static/js/solar-system/solar-system-app.js
-// Solar System Application with speed-based animation control (no pause state)
+import { SceneManager } from './scene-manager.js';
+import { CameraControls } from './camera-controls.js';
+import { InteractionManager } from './interaction-manager.js';
+import { LightingSystem } from './lighting-system.js';
+import { ParticleSystems } from './particle-systems.js';
+import { PlanetFactory } from './planet-factory.js';
+import { PlanetLabels } from './planet-labels.js';
+import { OrbitalMechanics } from './orbital-mechanics.js';
 
-window.SolarSystemApp = class {
+export class SolarSystemApp {
     constructor(options = {}) {
         this.options = {
             containerId: 'canvas-container',
@@ -1139,3 +1145,8 @@ window.SolarSystemApp = class {
 };
 
 console.log('Enhanced SolarSystemApp with speed-based animation control loaded successfully');
+
+// For backward compatibility with existing code
+if (typeof window !== 'undefined') {
+    window.SolarSystemApp = SolarSystemApp;
+}
