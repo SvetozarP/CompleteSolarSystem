@@ -130,7 +130,14 @@ class PlanetDetailAPIView(BasePlanetAPIView):
     def get(self, request, planet_id):
         """Return detailed data for a specific planet."""
         try:
-            planet = get_object_or_404(Planet, id=planet_id, is_active=True)
+            try:
+                planet = Planet.objects.get(id=planet_id, is_active=True)
+            except Planet.DoesNotExist:
+                logger.info(f"Planet with ID {planet_id} not found")
+                return self.error_response(
+                    "Planet not found",
+                    status=404
+                )
 
             # Get detailed planet data
             detailed_data = planet.to_dict()
@@ -153,7 +160,7 @@ class PlanetDetailAPIView(BasePlanetAPIView):
         except Exception as e:
             logger.error(f"Error in PlanetDetailAPIView: {e}")
             return self.error_response(
-                f"Failed to retrieve planet data for ID {planet_id}",
+                "Failed to retrieve planet data",
                 status=500
             )
 
