@@ -1,5 +1,5 @@
 // static/js/solar-system/lighting-system.js
-// COMPLETELY FIXED Lighting System with working bloom effects
+// COMPLETELY FIXED Lighting System with working bloom effects and proper null handling
 
 window.LightingSystem = (function() {
     'use strict';
@@ -468,9 +468,19 @@ window.LightingSystem = (function() {
         }
 
         /**
-         * Remove all lights
+         * Remove all lights - FIXED: Handle null scene properly
          */
         removeAllLights() {
+            // Early return if scene is not available
+            if (!this.scene) {
+                // Just null out the light references
+                this.sunLight = null;
+                this.ambientLight = null;
+                this.atmosphericLight = null;
+                this.sunPointLight = null;
+                return;
+            }
+
             const lightsToRemove = ['sunLight', 'ambientLight', 'atmosphericLight', 'sunPointLight'];
 
             lightsToRemove.forEach(lightName => {

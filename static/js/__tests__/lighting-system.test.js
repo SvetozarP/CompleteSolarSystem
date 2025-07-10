@@ -1,5 +1,5 @@
 // static/js/__tests__/lighting-system.test.js
-// FIXED: Comprehensive tests for the LightingSystem with correct precision handling
+// FIXED: Tests now import the real LightingSystem class for proper coverage
 
 // Mock THREE.js with enhanced lighting components
 const THREE = {
@@ -76,7 +76,7 @@ const THREE = {
         this.threshold = threshold || 0.8;
         this.enabled = true;
         this.setSize = jest.fn();
-        // FIXED: Add resolution.set method
+        // Add resolution.set method
         if (this.resolution) {
             this.resolution.set = jest.fn((width, height) => {
                 this.resolution.x = width;
@@ -149,384 +149,33 @@ const THREE = {
 // Global THREE setup
 global.THREE = THREE;
 
-// Mock the LightingSystem class with FIXED precision handling
-class MockLightingSystem {
-    constructor(options = {}) {
-        this.options = {
-            enableSunLight: true,
-            enableAmbientLight: true,
-            enableBloom: true,
-            enableAtmosphere: true,
-            sunIntensity: 2.0,
-            ambientIntensity: 0.2,
-            bloomStrength: 1.0,
-            bloomRadius: 0.5,
-            bloomThreshold: 0.8,
-            ...options
-        };
+// Mock window and console for the lighting system
+global.window = global.window || {};
+global.console = {
+    log: jest.fn(),
+    warn: jest.fn(),
+    error: jest.fn()
+};
 
-        // Lighting components
-        this.sunLight = null;
-        this.ambientLight = null;
-        this.atmosphericLight = null;
-        this.sunPointLight = null;
+// Mock innerWidth and innerHeight
+global.window.innerWidth = 1024;
+global.window.innerHeight = 768;
 
-        // Post-processing
-        this.composer = null;
-        this.bloomPass = null;
-        this.renderPass = null;
-
-        // Scene references
-        this.scene = null;
-        this.camera = null;
-        this.renderer = null;
-
-        // Sun reference
-        this.sunObject = null;
-        this.sunPosition = { x: 0, y: 0, z: 0 };
-
-        this.isInitialized = false;
-        this.bloomEnabled = false;
-    }
-
-    async init(scene, camera, renderer) {
-        this.scene = scene;
-        this.camera = camera;
-        this.renderer = renderer;
-
-        try {
-            await this.createCoreLighting();
-
-            if (this.options.enableBloom) {
-                await this.setupPostProcessing();
-            }
-
-            if (this.options.enableAtmosphere) {
-                await this.createAtmosphericEffects();
-            }
-
-            this.isInitialized = true;
-            return true;
-        } catch (error) {
-            throw error;
-        }
-    }
-
-    async createCoreLighting() {
-        this.removeAllLights();
-
-        if (this.options.enableSunLight) {
-            this.sunLight = new THREE.DirectionalLight(0xFFFFFF, this.options.sunIntensity);
-            this.sunLight.position.set(0, 0, 0);
-            this.sunLight.castShadow = true;
-            this.sunLight.name = 'sunLight';
-            this.scene.add(this.sunLight);
-        }
-
-        if (this.options.enableAmbientLight) {
-            this.ambientLight = new THREE.AmbientLight(0x404080, this.options.ambientIntensity);
-            this.ambientLight.name = 'ambientLight';
-            this.scene.add(this.ambientLight);
-        }
-
-        this.sunPointLight = new THREE.PointLight(0xFFDD44, 2.0, 200, 1.8);
-        this.sunPointLight.position.set(0, 0, 0);
-        this.sunPointLight.name = 'sunPointLight';
-        this.scene.add(this.sunPointLight);
-    }
-
-    async setupPostProcessing() {
-        try {
-            if (typeof THREE.EffectComposer === 'undefined' ||
-                typeof THREE.RenderPass === 'undefined' ||
-                typeof THREE.UnrealBloomPass === 'undefined') {
-                this.bloomEnabled = false;
-                return;
-            }
-
-            this.composer = new THREE.EffectComposer(this.renderer);
-            this.renderPass = new THREE.RenderPass(this.scene, this.camera);
-            this.composer.addPass(this.renderPass);
-
-            this.bloomPass = new THREE.UnrealBloomPass(
-                new THREE.Vector2(1024, 768),
-                this.options.bloomStrength,
-                this.options.bloomRadius,
-                this.options.bloomThreshold
-            );
-
-            this.composer.addPass(this.bloomPass);
-            this.bloomEnabled = true;
-        } catch (error) {
-            this.bloomEnabled = false;
-        }
-    }
-
-    async createAtmosphericEffects() {
-        this.atmosphericLight = new THREE.HemisphereLight(
-            0x87CEEB, // Sky color
-            0x1e1e1e, // Ground color
-            0.4       // Intensity
-        );
-        this.atmosphericLight.name = 'atmosphericLight';
-        this.scene.add(this.atmosphericLight);
-    }
-
-    update(deltaTime) {
-        if (!this.isInitialized) return;
-
-        if (this.sunObject && this.sunLight) {
-            this.sunPosition = this.sunObject.position;
-            this.sunLight.position.copy(this.sunPosition);
-            this.sunLight.target.position.set(0, 0, 0);
-            this.sunLight.target.updateMatrixWorld();
-
-            if (this.sunPointLight) {
-                this.sunPointLight.position.copy(this.sunPosition);
-            }
-        }
-
-        this.updateAtmosphericEffects();
-
-        if (this.bloomEnabled && this.bloomPass) {
-            this.updateBloomEffects();
-        }
-    }
-
-    // FIXED: Atmospheric effects with proper precision handling
-    updateAtmosphericEffects() {
-        if (!this.atmosphericLight || !this.camera) return;
-
-        const cameraDistance = this.camera.position.distanceTo(
-            new THREE.Vector3(this.sunPosition.x, this.sunPosition.y, this.sunPosition.z)
-        );
-
-        const maxDistance = 200;
-        const minIntensity = 0.2;
-        const maxIntensity = 0.6;
-
-        const normalizedDistance = Math.min(cameraDistance / maxDistance, 1.0);
-        const intensity = maxIntensity - (normalizedDistance * (maxIntensity - minIntensity));
-
-        // FIXED: Round to avoid floating-point precision issues
-        this.atmosphericLight.intensity = Math.round(intensity * 100) / 100;
-    }
-
-    updateBloomEffects() {
-        if (!this.sunObject || !this.camera) return;
-
-        const sunDistance = this.camera.position.distanceTo(
-            new THREE.Vector3(this.sunPosition.x, this.sunPosition.y, this.sunPosition.z)
-        );
-
-        const maxDistance = 150;
-        const minBloom = this.options.bloomStrength * 0.5;
-        const maxBloom = this.options.bloomStrength * 1.5;
-
-        const normalizedDistance = Math.min(sunDistance / maxDistance, 1.0);
-        const bloomStrength = maxBloom - (normalizedDistance * (maxBloom - minBloom));
-
-        this.bloomPass.strength = bloomStrength;
-    }
-
-    render() {
-        if (this.bloomEnabled && this.composer) {
-            this.composer.render();
-        } else {
-            this.renderer.render(this.scene, this.camera);
-        }
-    }
-
-    handleResize(width, height) {
-        if (this.composer) {
-            this.composer.setSize(width, height);
-        }
-
-        if (this.bloomPass) {
-            try {
-                if (this.bloomPass.resolution && this.bloomPass.resolution.set) {
-                    this.bloomPass.resolution.set(width, height);
-                } else if (this.bloomPass.setSize) {
-                    this.bloomPass.setSize(width, height);
-                }
-            } catch (error) {
-                // Handle resize error gracefully
-            }
-        }
-    }
-
-    setSunReference(sunObject) {
-        this.sunObject = sunObject;
-        if (sunObject) {
-            this.sunPosition = sunObject.position;
-        }
-    }
-
-    addPlanet(planetMesh, planetData) {
-        if (!planetMesh || !planetData) return;
-        this.enhancePlanetMaterial(planetMesh, planetData);
-    }
-
-    enhancePlanetMaterial(planetMesh, planetData) {
-        if (!planetMesh.material) return;
-
-        const material = planetMesh.material;
-
-        if (material.roughness !== undefined) {
-            material.roughness = this.getPlanetRoughness(planetData);
-        }
-        if (material.metalness !== undefined) {
-            material.metalness = this.getPlanetMetalness(planetData);
-        }
-
-        if (planetData.planet_type === 'gas_giant' || planetData.planet_type === 'ice_giant') {
-            if (material.emissive) {
-                const emissiveColor = new THREE.Color(planetData.color_hex);
-                emissiveColor.multiplyScalar(0.1);
-                material.emissive = emissiveColor;
-                material.emissiveIntensity = 0.2;
-            }
-        }
-
-        material.needsUpdate = true;
-    }
-
-    getPlanetRoughness(planetData) {
-        const roughnessMap = {
-            'terrestrial': 0.8,
-            'gas_giant': 0.1,
-            'ice_giant': 0.3,
-            'dwarf_planet': 0.9
-        };
-        return roughnessMap[planetData.planet_type] || 0.7;
-    }
-
-    getPlanetMetalness(planetData) {
-        const metalnessMap = {
-            'terrestrial': 0.1,
-            'gas_giant': 0.0,
-            'ice_giant': 0.0,
-            'dwarf_planet': 0.2
-        };
-        return metalnessMap[planetData.planet_type] || 0.0;
-    }
-
-    setQuality(quality) {
-        switch (quality) {
-            case 'low':
-                this.setLowQuality();
-                break;
-            case 'medium':
-                this.setMediumQuality();
-                break;
-            case 'high':
-                this.setHighQuality();
-                break;
-            default:
-                this.setMediumQuality();
-        }
-    }
-
-    setLowQuality() {
-        if (this.sunLight) {
-            this.sunLight.castShadow = false;
-        }
-        this.setBloomEnabled(false);
-        if (this.ambientLight) {
-            this.ambientLight.intensity = 0.5;
-        }
-    }
-
-    setMediumQuality() {
-        if (this.sunLight) {
-            this.sunLight.castShadow = true;
-            this.sunLight.shadow.mapSize.width = 1024;
-            this.sunLight.shadow.mapSize.height = 1024;
-        }
-        this.setBloomEnabled(true);
-        if (this.ambientLight) {
-            this.ambientLight.intensity = this.options.ambientIntensity;
-        }
-    }
-
-    // FIXED: High quality settings with proper rounding
-    setHighQuality() {
-        if (this.sunLight) {
-            this.sunLight.castShadow = true;
-            this.sunLight.shadow.mapSize.width = 2048;
-            this.sunLight.shadow.mapSize.height = 2048;
-            this.sunLight.shadow.radius = 4;
-        }
-        this.setBloomEnabled(true);
-        if (this.bloomPass) {
-            this.bloomPass.strength = this.options.bloomStrength * 1.2;
-        }
-        if (this.ambientLight) {
-            // FIXED: Round to avoid floating-point precision issues
-            this.ambientLight.intensity = Math.round(this.options.ambientIntensity * 1.1 * 100) / 100;
-        }
-    }
-
-    setBloomEnabled(enabled) {
-        if (this.bloomPass) {
-            this.bloomPass.enabled = enabled;
-            this.bloomEnabled = enabled;
-        }
-    }
-
-    getStats() {
-        return {
-            isInitialized: this.isInitialized,
-            bloomEnabled: this.bloomEnabled,
-            lightsCount: this.getLightsCount(),
-            shadowsEnabled: this.sunLight ? this.sunLight.castShadow : false,
-            sunPosition: this.sunPosition
-        };
-    }
-
-    getLightsCount() {
-        let count = 0;
-        if (this.sunLight) count++;
-        if (this.ambientLight) count++;
-        if (this.atmosphericLight) count++;
-        if (this.sunPointLight) count++;
-        return count;
-    }
-
-    removeAllLights() {
-        // Mock implementation - in real code this would remove lights from scene
-        this.sunLight = null;
-        this.ambientLight = null;
-        this.atmosphericLight = null;
-        this.sunPointLight = null;
-    }
-
-    dispose() {
-        this.removeAllLights();
-
-        if (this.composer) {
-            this.composer.dispose();
-        }
-
-        this.scene = null;
-        this.camera = null;
-        this.renderer = null;
-        this.sunObject = null;
-        this.isInitialized = false;
-    }
-
-    // Getters
-    get SunLight() { return this.sunLight; }
-    get AmbientLight() { return this.ambientLight; }
-    get BloomEnabled() { return this.bloomEnabled; }
-    get IsInitialized() { return this.isInitialized; }
-}
+// Import the actual LightingSystem
+require('../solar-system/lighting-system.js');
+const { LightingSystem } = window.LightingSystem;
 
 // Mock scene, camera, and renderer
 const createMockScene = () => ({
     add: jest.fn(),
     remove: jest.fn(),
-    getObjectByName: jest.fn()
+    getObjectByName: jest.fn((name) => {
+        // Return a mock object with dispose method
+        return {
+            dispose: jest.fn(),
+            name: name
+        };
+    })
 });
 
 const createMockCamera = () => ({
@@ -569,11 +218,11 @@ describe('LightingSystem', () => {
         mockCamera = createMockCamera();
         mockRenderer = createMockRenderer();
 
-        lightingSystem = new MockLightingSystem();
+        lightingSystem = new LightingSystem();
     });
 
     afterEach(() => {
-        if (lightingSystem) {
+        if (lightingSystem && lightingSystem.isInitialized) {
             lightingSystem.dispose();
         }
     });
@@ -596,7 +245,7 @@ describe('LightingSystem', () => {
                 ambientIntensity: 0.5,
                 bloomThreshold: 0.5
             };
-            const customLightingSystem = new MockLightingSystem(customOptions);
+            const customLightingSystem = new LightingSystem(customOptions);
 
             expect(customLightingSystem.options.enableBloom).toBe(false);
             expect(customLightingSystem.options.sunIntensity).toBe(3.0);
@@ -607,7 +256,7 @@ describe('LightingSystem', () => {
         test('should initialize with scene, camera, and renderer', async () => {
             const success = await lightingSystem.init(mockScene, mockCamera, mockRenderer);
 
-            expect(success).toBe(true);
+            expect(success).toBeUndefined(); // init doesn't return anything in real implementation
             expect(lightingSystem.isInitialized).toBe(true);
             expect(lightingSystem.scene).toBe(mockScene);
             expect(lightingSystem.camera).toBe(mockCamera);
@@ -664,7 +313,7 @@ describe('LightingSystem', () => {
         });
 
         test('should not create lights when disabled', async () => {
-            const disabledLightingSystem = new MockLightingSystem({
+            const disabledLightingSystem = new LightingSystem({
                 enableSunLight: false,
                 enableAmbientLight: false,
                 enableAtmosphere: false
@@ -709,7 +358,7 @@ describe('LightingSystem', () => {
             const originalEffectComposer = THREE.EffectComposer;
             delete THREE.EffectComposer;
 
-            const fallbackLightingSystem = new MockLightingSystem();
+            const fallbackLightingSystem = new LightingSystem();
             await fallbackLightingSystem.init(mockScene, mockCamera, mockRenderer);
 
             expect(fallbackLightingSystem.bloomEnabled).toBe(false);
@@ -770,7 +419,6 @@ describe('LightingSystem', () => {
             await lightingSystem.init(mockScene, mockCamera, mockRenderer);
         });
 
-        // FIXED: Use proper expected values with rounding
         test('should update atmospheric light intensity based on camera distance', () => {
             const mockSunObject = createMockSunObject();
             lightingSystem.setSunReference(mockSunObject);
@@ -780,12 +428,11 @@ describe('LightingSystem', () => {
 
             lightingSystem.update(0.016);
 
-            // FIXED: Calculate expected value with proper precision
+            // Calculate expected value
             const normalizedDistance = 100 / 200; // 0.5
             const expectedIntensity = 0.6 - (normalizedDistance * (0.6 - 0.2));
-            const roundedExpected = Math.round(expectedIntensity * 100) / 100;
 
-            expect(lightingSystem.atmosphericLight.intensity).toBe(roundedExpected);
+            expect(lightingSystem.atmosphericLight.intensity).toBe(expectedIntensity);
         });
 
         test('should clamp atmospheric intensity at maximum distance', () => {
@@ -800,7 +447,6 @@ describe('LightingSystem', () => {
             expect(lightingSystem.atmosphericLight.intensity).toBe(0.2);
         });
 
-        // FIXED: Use proper expected value with rounding
         test('should set maximum atmospheric intensity at close distance', () => {
             const mockSunObject = createMockSunObject();
             lightingSystem.setSunReference(mockSunObject);
@@ -809,12 +455,11 @@ describe('LightingSystem', () => {
 
             lightingSystem.update(0.016);
 
-            // FIXED: Calculate and round the expected value
+            // Calculate expected value
             const normalizedDistance = 10 / 200; // 0.05
             const expectedIntensity = 0.6 - (normalizedDistance * (0.6 - 0.2));
-            const roundedExpected = Math.round(expectedIntensity * 100) / 100;
 
-            expect(lightingSystem.atmosphericLight.intensity).toBe(roundedExpected);
+            expect(lightingSystem.atmosphericLight.intensity).toBe(expectedIntensity);
         });
     });
 
@@ -966,26 +611,22 @@ describe('LightingSystem', () => {
             lightingSystem.setQuality('medium');
 
             expect(lightingSystem.sunLight.castShadow).toBe(true);
-            expect(lightingSystem.sunLight.shadow.mapSize.width).toBe(1024);
-            expect(lightingSystem.sunLight.shadow.mapSize.height).toBe(1024);
+            expect(lightingSystem.sunLight.shadow.mapSize.setScalar).toHaveBeenCalledWith(1024);
             expect(lightingSystem.bloomPass.enabled).toBe(true);
             expect(lightingSystem.bloomEnabled).toBe(true);
             expect(lightingSystem.ambientLight.intensity).toBe(0.2); // original intensity
         });
 
-        // FIXED: Proper test for high quality with rounded values
         test('should set high quality correctly', () => {
             lightingSystem.setQuality('high');
 
             expect(lightingSystem.sunLight.castShadow).toBe(true);
-            expect(lightingSystem.sunLight.shadow.mapSize.width).toBe(2048);
-            expect(lightingSystem.sunLight.shadow.mapSize.height).toBe(2048);
+            expect(lightingSystem.sunLight.shadow.mapSize.setScalar).toHaveBeenCalledWith(2048);
             expect(lightingSystem.sunLight.shadow.radius).toBe(4);
             expect(lightingSystem.bloomPass.enabled).toBe(true);
             expect(lightingSystem.bloomPass.strength).toBe(1.2); // boosted bloom strength
 
-            // FIXED: Use the rounded value
-            const expectedAmbient = Math.round(0.2 * 1.1 * 100) / 100;
+            const expectedAmbient = 0.2 * 1.1;
             expect(lightingSystem.ambientLight.intensity).toBe(expectedAmbient);
         });
 
@@ -1096,7 +737,7 @@ describe('LightingSystem', () => {
         });
 
         test('should count lights correctly when some are disabled', async () => {
-            const partialLightingSystem = new MockLightingSystem({
+            const partialLightingSystem = new LightingSystem({
                 enableAmbientLight: false,
                 enableAtmosphere: false
             });
@@ -1142,8 +783,9 @@ describe('LightingSystem', () => {
         });
 
         test('should handle disposal when not fully initialized', () => {
-            const uninitializedSystem = new MockLightingSystem();
+            const uninitializedSystem = new LightingSystem();
 
+            // The real implementation now handles null scene gracefully
             expect(() => {
                 uninitializedSystem.dispose();
             }).not.toThrow();
@@ -1256,22 +898,18 @@ describe('LightingSystem', () => {
             expect(updateSpy).not.toHaveBeenCalled();
         });
 
-        // FIXED: Simplified test that doesn't use property descriptors
         test('should efficiently handle repeated quality changes', () => {
-            // Track shadow map size changes indirectly
-            const initialWidth = lightingSystem.sunLight.shadow.mapSize.width;
-
+            // Track shadow map size changes
             lightingSystem.setQuality('high');
-            expect(lightingSystem.sunLight.shadow.mapSize.width).toBe(2048);
+            expect(lightingSystem.sunLight.shadow.mapSize.setScalar).toHaveBeenCalledWith(2048);
 
             lightingSystem.setQuality('low');
             expect(lightingSystem.sunLight.castShadow).toBe(false);
 
             lightingSystem.setQuality('medium');
-            expect(lightingSystem.sunLight.shadow.mapSize.width).toBe(1024);
+            expect(lightingSystem.sunLight.shadow.mapSize.setScalar).toHaveBeenCalledWith(1024);
         });
 
-        // FIXED: Simplified test for resize handling
         test('should handle rapid resize calls efficiently', () => {
             // Ensure composer exists and mock setSize to track calls
             if (lightingSystem.composer) {
@@ -1328,6 +966,73 @@ describe('LightingSystem', () => {
             // Verify all lights are positioned correctly relative to sun
             expect(lightingSystem.sunLight.position.copy).toHaveBeenCalledWith(mockSunObject.position);
             expect(lightingSystem.sunPointLight.position.copy).toHaveBeenCalledWith(mockSunObject.position);
+        });
+    });
+
+    describe('Factory Method', () => {
+        test('should create lighting system via factory method', () => {
+            const lightingSystemFromFactory = window.LightingSystem.create({
+                enableBloom: false,
+                sunIntensity: 3.0
+            });
+
+            expect(lightingSystemFromFactory).toBeInstanceOf(LightingSystem);
+            expect(lightingSystemFromFactory.options.enableBloom).toBe(false);
+            expect(lightingSystemFromFactory.options.sunIntensity).toBe(3.0);
+        });
+
+        test('should create lighting system with default options via factory', () => {
+            const lightingSystemFromFactory = window.LightingSystem.create();
+
+            expect(lightingSystemFromFactory).toBeInstanceOf(LightingSystem);
+            expect(lightingSystemFromFactory.options.enableBloom).toBe(true);
+            expect(lightingSystemFromFactory.options.sunIntensity).toBe(2.0);
+        });
+    });
+
+    describe('Console Logging', () => {
+        beforeEach(() => {
+            jest.clearAllMocks();
+        });
+
+        test('should log initialization messages', async () => {
+            await lightingSystem.init(mockScene, mockCamera, mockRenderer);
+
+            expect(console.log).toHaveBeenCalledWith('🌟 Initializing enhanced lighting system...');
+            expect(console.log).toHaveBeenCalledWith('✅ Enhanced lighting system initialized successfully');
+        });
+
+        test('should log error messages on initialization failure', async () => {
+            mockScene.add = jest.fn(() => {
+                throw new Error('Scene error');
+            });
+
+            try {
+                await lightingSystem.init(mockScene, mockCamera, mockRenderer);
+            } catch (error) {
+                expect(console.error).toHaveBeenCalledWith('❌ Failed to initialize lighting system:', error);
+            }
+        });
+
+        test('should log quality setting changes', () => {
+            lightingSystem.setQuality('high');
+            expect(console.log).toHaveBeenCalledWith('  ✅ Lighting quality set to high');
+        });
+
+        test('should log planet enhancement', async () => {
+            await lightingSystem.init(mockScene, mockCamera, mockRenderer);
+
+            const planetMesh = createMockPlanetMesh();
+            const planetData = createMockPlanetData({ name: 'Earth' });
+
+            lightingSystem.addPlanet(planetMesh, planetData);
+
+            expect(console.log).toHaveBeenCalledWith('  ✅ Enhanced lighting applied to Earth');
+        });
+
+        test('should log disposal message', () => {
+            lightingSystem.dispose();
+            expect(console.log).toHaveBeenCalledWith('✅ Lighting system disposed');
         });
     });
 });
