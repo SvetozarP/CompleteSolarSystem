@@ -471,6 +471,15 @@ window.LightingSystem = (function() {
          * Remove all lights
          */
         removeAllLights() {
+            if (!this.scene) {
+                // If scene is null, just reset the light references
+                this.sunLight = null;
+                this.ambientLight = null;
+                this.atmosphericLight = null;
+                this.sunPointLight = null;
+                return;
+            }
+
             const lightsToRemove = ['sunLight', 'ambientLight', 'atmosphericLight', 'sunPointLight'];
 
             lightsToRemove.forEach(lightName => {
