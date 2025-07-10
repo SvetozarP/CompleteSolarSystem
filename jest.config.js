@@ -1,4 +1,12 @@
 module.exports = {
+  collectCoverage: true,
+  collectCoverageFrom: [
+    "static/js/solar-system/*.{js,ts,jsx,tsx}", // Main structure files
+    "static/js/ui/*.{js,ts,jsx,tsx}",           // UI
+    "static/js/utils/*.{js,ts,jsx,tsx}",    // Utilities
+  ],
+  coverageDirectory: "coverage", // Output directory for coverage reports
+  coverageReporters: ["text", "lcov", "html"], // Formats of the report
   testEnvironment: 'jsdom',
   transform: {
     '^.+\\.js$': ['babel-jest', { rootMode: 'upward' }]
@@ -19,5 +27,6 @@ module.exports = {
   '/node_modules/',
   '/static/js/__tests__/setup.js',
   '/static/js/__tests__/test-utils.js'
-]
+  ],
+
 };
