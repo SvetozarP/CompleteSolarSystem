@@ -765,7 +765,7 @@ window.PlanetFactory = (function() {
         createProceduralMoon(moonGroup, name, distance, size, color) {
             const geometry = new THREE.SphereGeometry(size, 16, 16);
             const material = new THREE.MeshStandardMaterial({
-                color: color,
+                color: new THREE.Color(color), // Fix: wrap color in THREE.Color constructor
                 roughness: 0.9,
                 metalness: 0.0
             });
@@ -1067,7 +1067,14 @@ window.PlanetFactory = (function() {
                 scaledSize = 5.0;
             } else {
                 const earthDiameter = 12756;
-                const sizeRatio = planetData.diameter / earthDiameter;
+                const diameter = planetData.diameter;
+
+                // Fix: Handle NaN, undefined, null, and invalid diameters
+                if (!diameter || isNaN(diameter) || diameter <= 0) {
+                    return MIN_SIZE;
+                }
+
+                const sizeRatio = diameter / earthDiameter;
 
                 if (sizeRatio < 0.1) {
                     scaledSize = 0.3 + (sizeRatio * 5);
@@ -1078,8 +1085,12 @@ window.PlanetFactory = (function() {
                 }
             }
 
-            return Math.max(MIN_SIZE, Math.min(MAX_SIZE, scaledSize));
+            const result = Math.max(MIN_SIZE, Math.min(MAX_SIZE, scaledSize));
+
+            // Fix: Ensure we never return NaN
+            return isNaN(result) ? MIN_SIZE : result;
         }
+
 
         getOrCreateGeometry(planetData, options = {}) {
             const segments = this.getSegmentCount(planetData, options.quality);

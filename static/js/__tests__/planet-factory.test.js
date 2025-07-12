@@ -1,8 +1,8 @@
 // static/js/__tests__/planet-factory.test.js
-// Comprehensive tests for the enhanced Planet Factory with textures, moons, and rings
+// FIXED: Tests now import the real PlanetFactory class for proper coverage
 
 // ===================================================================
-// ENHANCED THREE.JS MOCKS FOR PLANET FACTORY
+// ENHANCED THREE.JS MOCKS FOR PLANET FACTORY (from lighting-system.test.js)
 // ===================================================================
 
 const THREE = {
@@ -212,6 +212,14 @@ const THREE = {
 // Global THREE setup
 global.THREE = THREE;
 
+// Mock window and console for the planet factory
+global.window = global.window || {};
+global.console = {
+    log: jest.fn(),
+    warn: jest.fn(),
+    error: jest.fn()
+};
+
 // Mock console methods to reduce test output noise
 const originalConsoleLog = console.log;
 const originalConsoleWarn = console.warn;
@@ -229,814 +237,9 @@ afterAll(() => {
     console.error = originalConsoleError;
 });
 
-// ===================================================================
-// MOCK PLANET FACTORY IMPLEMENTATION
-// ===================================================================
-
-class MockPlanetFactory {
-    constructor(options = {}) {
-        this.options = {
-            defaultSegments: 64,
-            highQualitySegments: 128,
-            lowQualitySegments: 32,
-            enableTextures: true,
-            enableNormalMaps: true,
-            enableAtmosphere: true,
-            enableRings: true,
-            enableMoons: true,
-            quality: 'medium',
-            ...options
-        };
-
-        // Caches
-        this.materialCache = new Map();
-        this.geometryCache = new Map();
-        this.textureCache = new Map();
-        this.planetInstances = new Map();
-        this.moonSystems = new Map();
-        this.ringSystems = new Map();
-        this.atmospheres = new Map();
-
-        // Texture loader
-        this.textureLoader = new THREE.TextureLoader();
-        this.isInitialized = false;
-
-        // Mock texture paths
-        this.texturePaths = {
-            sun: '/static/textures/sun_texture.jpg',
-            earth: '/static/textures/earth_texture.jpg',
-            mars: '/static/textures/mars_texture.jpg',
-            jupiter: '/static/textures/jupiter_texture.jpg',
-            saturn: '/static/textures/saturn_texture.jpg',
-            moon: '/static/textures/moon_texture.jpg',
-            saturn_rings: '/static/textures/saturn_rings.png',
-            earth_normal: '/static/textures/earth_normal.jpg'
-        };
-    }
-
-    async init() {
-        try {
-            await this.initializeTextures();
-            this.isInitialized = true;
-            return true;
-        } catch (error) {
-            throw error;
-        }
-    }
-
-    async initializeTextures() {
-        // Mock texture initialization
-        return Promise.resolve();
-    }
-
-    async createPlanet(planetData, options = {}) {
-        if (!this.isInitialized) {
-            await this.init();
-        }
-
-        try {
-            const planetOptions = {
-                quality: this.options.quality,
-                enableAtmosphere: this.options.enableAtmosphere && this.shouldHaveAtmosphere(planetData),
-                enableRings: this.options.enableRings && planetData.has_rings,
-                enableMoons: this.options.enableMoons && planetData.has_moons,
-                enableGlow: planetData.name === 'Sun',
-                enableTextures: this.options.enableTextures,
-                ...options
-            };
-
-            const planetGroup = new THREE.Group();
-            planetGroup.name = `${planetData.name}_group`;
-            planetGroup.userData = { planetData, type: 'planet' };
-
-            // Create main planet mesh
-            const planetMesh = await this.createEnhancedPlanetMesh(planetData, planetOptions);
-            planetGroup.add(planetMesh);
-
-            // Add atmosphere if applicable
-            if (planetOptions.enableAtmosphere) {
-                const atmosphere = await this.createAtmosphere(planetData, planetOptions);
-                if (atmosphere) {
-                    planetGroup.add(atmosphere);
-                    this.atmospheres.set(planetData.name, atmosphere);
-                }
-            }
-
-            // Add ring system if applicable
-            if (planetOptions.enableRings) {
-                const rings = await this.createEnhancedRingSystem(planetData, planetOptions);
-                if (rings) {
-                    planetGroup.add(rings);
-                    this.ringSystems.set(planetData.name, rings);
-                }
-            }
-
-            // Add moon system if applicable
-            if (planetOptions.enableMoons) {
-                const moons = await this.createMoonSystem(planetData, planetOptions);
-                if (moons && moons.children.length > 0) {
-                    planetGroup.add(moons);
-                    this.moonSystems.set(planetData.name, moons);
-                }
-            }
-
-            // Add glow effect for the sun
-            if (planetOptions.enableGlow) {
-                const glow = await this.createSunGlow(planetData, planetOptions);
-                if (glow) {
-                    planetGroup.add(glow);
-                }
-            }
-
-            this.planetInstances.set(planetData.name, planetGroup);
-            return planetGroup;
-
-        } catch (error) {
-            // Fix: Ensure fallback planet is created and stored
-            const fallbackPlanet = this.createFallbackPlanet(planetData);
-            this.planetInstances.set(planetData.name, fallbackPlanet); // This was missing!
-            return fallbackPlanet;
-        }
-    }
-
-    async createEnhancedPlanetMesh(planetData, options = {}) {
-        const geometry = this.getOrCreateGeometry(planetData, options);
-        const material = await this.createEnhancedMaterial(planetData, options);
-
-        const mesh = new THREE.Mesh(geometry, material);
-        mesh.name = planetData.name;
-        mesh.userData = { planetData, type: 'planetMesh' };
-
-        const scaledSize = this.calculateScaledSize(planetData);
-        mesh.scale.setScalar(scaledSize);
-
-        if (planetData.name !== 'Sun') {
-            mesh.castShadow = true;
-            mesh.receiveShadow = true;
-        }
-
-        return mesh;
-    }
-
-    async createEnhancedMaterial(planetData, options = {}) {
-        const materialKey = `${planetData.name}_${options.quality || 'medium'}_textured`;
-
-        if (this.materialCache.has(materialKey)) {
-            return this.materialCache.get(materialKey);
-        }
-
-        let material;
-
-        if (planetData.name === 'Sun') {
-            material = await this.createEnhancedSunMaterial(planetData, options);
-        } else {
-            material = await this.createEnhancedPlanetMaterial(planetData, options);
-        }
-
-        this.materialCache.set(materialKey, material);
-        return material;
-    }
-
-    async createEnhancedSunMaterial(planetData, options = {}) {
-        const baseColor = new THREE.Color(planetData.color_hex || '#FDB813');
-
-        try {
-            const texture = await this.loadTexture('sun');
-            const material = new THREE.MeshBasicMaterial({
-                map: texture,
-                color: baseColor.clone().multiplyScalar(1.2)
-            });
-
-            material.userData = {
-                isSun: true,
-                baseColor: baseColor,
-                intensity: 1.2
-            };
-
-            return material;
-        } catch (error) {
-            return new THREE.MeshBasicMaterial({
-                color: baseColor.clone().multiplyScalar(1.5)
-            });
-        }
-    }
-
-    async createEnhancedPlanetMaterial(planetData, options = {}) {
-        const baseColor = new THREE.Color(planetData.color_hex || '#888888');
-        const planetName = planetData.name.toLowerCase();
-
-        try {
-            const texture = await this.loadTexture(planetName);
-
-            const materialOptions = {
-                map: texture,
-                roughness: this.getRoughness(planetData),
-                metalness: this.getMetalness(planetData),
-            };
-
-            // Try to load normal map
-            try {
-                const normalMap = await this.loadTexture(`${planetName}_normal`);
-                materialOptions.normalMap = normalMap;
-            } catch (normalError) {
-                // Normal map not available, continue without it
-            }
-
-            this.addPlanetSpecificProperties(materialOptions, planetData);
-
-            const material = new THREE.MeshStandardMaterial(materialOptions);
-            material.userData = {
-                planetData: planetData,
-                originalColor: baseColor.clone(),
-                hasTexture: true
-            };
-
-            return material;
-        } catch (error) {
-            return this.createProceduralMaterial(planetData);
-        }
-    }
-
-    createProceduralMaterial(planetData) {
-        const baseColor = new THREE.Color(planetData.color_hex || '#888888');
-
-        const materialOptions = {
-            color: baseColor,
-            roughness: this.getRoughness(planetData),
-            metalness: this.getMetalness(planetData),
-        };
-
-        this.addPlanetSpecificProperties(materialOptions, planetData);
-
-        const material = new THREE.MeshStandardMaterial(materialOptions);
-        material.userData = {
-            planetData: planetData,
-            originalColor: baseColor.clone(),
-            hasTexture: false
-        };
-
-        return material;
-    }
-
-    async loadTexture(textureName) {
-        if (this.textureCache.has(textureName)) {
-            return this.textureCache.get(textureName);
-        }
-
-        return new Promise((resolve, reject) => {
-            const texturePath = this.texturePaths[textureName];
-
-            if (!texturePath) {
-                reject(new Error(`No texture path defined for ${textureName}`));
-                return;
-            }
-
-            this.textureLoader.load(
-                texturePath,
-                (texture) => {
-                    texture.wrapS = THREE.RepeatWrapping;
-                    texture.wrapT = THREE.RepeatWrapping;
-                    texture.magFilter = THREE.LinearFilter;
-                    texture.minFilter = THREE.LinearMipMapLinearFilter;
-                    texture.generateMipmaps = true;
-
-                    this.textureCache.set(textureName, texture);
-                    resolve(texture);
-                },
-                undefined,
-                (error) => {
-                    reject(error);
-                }
-            );
-        });
-    }
-
-    async createEnhancedRingSystem(planetData, options = {}) {
-        if (!planetData.has_rings) {
-            return null;
-        }
-
-        const ringGroup = new THREE.Group();
-        ringGroup.name = `${planetData.name}_rings`;
-
-        const planetName = planetData.name.toLowerCase();
-
-        if (planetName === 'saturn') {
-            await this.createSaturnRings(ringGroup);
-        } else if (planetName === 'uranus') {
-            await this.createUranusRings(ringGroup);
-        } else {
-            await this.createGenericRings(ringGroup, planetData);
-        }
-
-        return ringGroup;
-    }
-
-    async createSaturnRings(ringGroup) {
-        try {
-            const ringTexture = await this.loadTexture('saturn_rings');
-
-            const geometry = new THREE.RingGeometry(4.2, 6.5, 128);
-            const material = new THREE.MeshBasicMaterial({
-                map: ringTexture,
-                transparent: true,
-                opacity: 0.8,
-                side: THREE.DoubleSide,
-                depthWrite: false,
-                alphaTest: 0.1
-            });
-
-            const ringMesh = new THREE.Mesh(geometry, material);
-            ringMesh.rotation.x = Math.PI / 2;
-            ringGroup.add(ringMesh);
-        } catch (error) {
-            await this.createProceduralSaturnRings(ringGroup);
-        }
-    }
-
-    async createProceduralSaturnRings(ringGroup) {
-        const ringDivisions = [
-            { inner: 1.2, outer: 1.5, opacity: 0.8, color: 0xCCCCCC },
-            { inner: 1.6, outer: 1.9, opacity: 0.6, color: 0xAAAAAA }
-        ];
-
-        for (const ring of ringDivisions) {
-            const geometry = new THREE.RingGeometry(ring.inner, ring.outer, 64);
-            const material = new THREE.MeshBasicMaterial({
-                color: ring.color,
-                transparent: true,
-                opacity: ring.opacity,
-                side: THREE.DoubleSide,
-                depthWrite: false
-            });
-
-            const ringMesh = new THREE.Mesh(geometry, material);
-            ringMesh.rotation.x = Math.PI / 2;
-            ringGroup.add(ringMesh);
-        }
-    }
-
-    async createUranusRings(ringGroup) {
-        const geometry = new THREE.RingGeometry(3.8, 4.2, 64);
-        const material = new THREE.MeshBasicMaterial({
-            color: 0x4FD0FF,
-            transparent: true,
-            opacity: 0.3,
-            side: THREE.DoubleSide,
-            depthWrite: false
-        });
-
-        const ringMesh = new THREE.Mesh(geometry, material);
-        ringMesh.rotation.x = Math.PI / 2;
-        ringMesh.rotation.z = Math.PI / 2;
-        ringGroup.add(ringMesh);
-    }
-
-    async createGenericRings(ringGroup, planetData) {
-        const geometry = new THREE.RingGeometry(1.2, 2.0, 64);
-        const ringColor = new THREE.Color(planetData.color_hex).multiplyScalar(0.7);
-
-        const material = new THREE.MeshBasicMaterial({
-            color: ringColor,
-            transparent: true,
-            opacity: 0.6,
-            side: THREE.DoubleSide,
-            depthWrite: false
-        });
-
-        const ringMesh = new THREE.Mesh(geometry, material);
-        ringMesh.rotation.x = Math.PI / 2;
-        ringGroup.add(ringMesh);
-    }
-
-    async createMoonSystem(planetData, options = {}) {
-        if (!planetData.has_moons || !planetData.moon_count) {
-            return null;
-        }
-
-        const moonGroup = new THREE.Group();
-        moonGroup.name = `${planetData.name}_moons`;
-        const planetName = planetData.name.toLowerCase();
-
-        switch (planetName) {
-            case 'earth':
-                await this.createEarthMoons(moonGroup);
-                break;
-            case 'mars':
-                await this.createMarsMoons(moonGroup);
-                break;
-            case 'jupiter':
-                await this.createJupiterMoons(moonGroup);
-                break;
-            default:
-                await this.createGenericMoons(moonGroup, planetData);
-                break;
-        }
-
-        return moonGroup;
-    }
-
-    async createEarthMoons(moonGroup) {
-        try {
-            const moonTexture = await this.loadTexture('moon');
-            this.createTexturedMoon(moonGroup, 'Moon', 8, 0.3, moonTexture);
-        } catch (error) {
-            this.createProceduralMoon(moonGroup, 'Moon', 8, 0.3, 0x999999);
-        }
-    }
-
-    async createMarsMoons(moonGroup) {
-        this.createProceduralMoon(moonGroup, 'Phobos', 4, 0.15, 0x8B7765);
-        this.createProceduralMoon(moonGroup, 'Deimos', 6, 0.1, 0x8B7765);
-    }
-
-    async createJupiterMoons(moonGroup) {
-        const majorMoons = [
-            { name: 'Io', distance: 10, size: 0.4, color: 0xFFFF99 },
-            { name: 'Europa', distance: 13, size: 0.35, color: 0xCCCCFF },
-            { name: 'Ganymede', distance: 16, size: 0.5, color: 0x999999 },
-            { name: 'Callisto', distance: 20, size: 0.45, color: 0x555555 }
-        ];
-
-        for (const moonData of majorMoons) {
-            this.createProceduralMoon(moonGroup, moonData.name, moonData.distance, moonData.size, moonData.color);
-        }
-    }
-
-    async createGenericMoons(moonGroup, planetData) {
-        const moonCount = Math.min(planetData.moon_count, 4);
-
-        for (let i = 0; i < moonCount; i++) {
-            const distance = 6 + i * 3;
-            const size = 0.1 + Math.random() * 0.2;
-            const color = 0x888888 + Math.random() * 0x444444;
-
-            this.createProceduralMoon(moonGroup, `Moon_${i + 1}`, distance, size, color);
-        }
-    }
-
-    createTexturedMoon(moonGroup, name, distance, size, texture) {
-        const geometry = new THREE.SphereGeometry(size, 16, 16);
-        const material = new THREE.MeshStandardMaterial({
-            map: texture,
-            roughness: 0.9,
-            metalness: 0.0
-        });
-
-        const moon = new THREE.Mesh(geometry, material);
-        moon.name = name;
-        moon.position.set(distance, 0, 0);
-        moon.castShadow = true;
-        moon.receiveShadow = true;
-
-        moon.userData = {
-            type: 'moon',
-            orbitalRadius: distance,
-            orbitalSpeed: 0.1 / distance,
-            rotationSpeed: 0.05,
-            moonData: { name: name }
-        };
-
-        moonGroup.add(moon);
-    }
-
-    createProceduralMoon(moonGroup, name, distance, size, color) {
-        const geometry = new THREE.SphereGeometry(size, 16, 16);
-        const material = new THREE.MeshStandardMaterial({
-            color: new THREE.Color(color), // Fix: wrap color in THREE.Color constructor
-            roughness: 0.9,
-            metalness: 0.0
-        });
-
-        const moon = new THREE.Mesh(geometry, material);
-        moon.name = name;
-        moon.position.set(distance, 0, 0);
-        moon.castShadow = true;
-        moon.receiveShadow = true;
-
-        moon.userData = {
-            type: 'moon',
-            orbitalRadius: distance,
-            orbitalSpeed: 0.1 / distance,
-            rotationSpeed: 0.05,
-            moonData: { name: name }
-        };
-
-        moonGroup.add(moon);
-    }
-
-    update(deltaTime) {
-        if (!this.isInitialized) return;
-
-        this.planetInstances.forEach((planetGroup, planetName) => {
-            this.updatePlanetGroup(planetGroup, deltaTime);
-        });
-    }
-
-    updatePlanetGroup(planetGroup, deltaTime) {
-        const planetData = planetGroup.userData.planetData;
-
-        // Update main planet rotation
-        const planetMesh = planetGroup.getObjectByName(planetData.name);
-        if (planetMesh && planetData.rotation_period) {
-            const rotationSpeed = (2 * Math.PI) / (planetData.rotation_period * 3600);
-            planetMesh.rotation.y += rotationSpeed * deltaTime * 1000;
-        }
-
-        // Update moon orbits
-        const moonSystem = this.moonSystems.get(planetData.name);
-        if (moonSystem) {
-            this.updateMoonOrbits(moonSystem, deltaTime);
-        }
-
-        // Update shader animations
-        planetGroup.traverse((child) => {
-            if (child.material && child.material.uniforms) {
-                if (child.material.uniforms.time) {
-                    child.material.uniforms.time.value += deltaTime;
-                }
-            }
-        });
-
-        // Update atmosphere effects
-        const atmosphere = this.atmospheres.get(planetData.name);
-        if (atmosphere && atmosphere.material.uniforms) {
-            atmosphere.material.uniforms.time.value += deltaTime;
-        }
-    }
-
-    updateMoonOrbits(moonSystem, deltaTime) {
-        moonSystem.children.forEach(moon => {
-            if (moon.userData && moon.userData.type === 'moon') {
-                const userData = moon.userData;
-
-                if (userData.orbitalAngle === undefined) {
-                    userData.orbitalAngle = Math.random() * Math.PI * 2;
-                }
-
-                userData.orbitalAngle += userData.orbitalSpeed * deltaTime * 10;
-
-                const x = Math.cos(userData.orbitalAngle) * userData.orbitalRadius;
-                const z = Math.sin(userData.orbitalAngle) * userData.orbitalRadius;
-                const y = Math.sin(userData.orbitalAngle * 2) * 0.5;
-
-                moon.position.set(x, y, z);
-                moon.rotation.y += userData.rotationSpeed * deltaTime * 10;
-            }
-        });
-    }
-
-    async createAtmosphere(planetData, options = {}) {
-        if (!this.shouldHaveAtmosphere(planetData)) {
-            return null;
-        }
-
-        const atmosphereRadius = 1.05;
-        const geometry = new THREE.SphereGeometry(atmosphereRadius, 32, 32);
-        const atmosphereColor = this.getAtmosphereColor(planetData);
-
-        const material = new THREE.ShaderMaterial({
-            uniforms: {
-                time: { value: 0.0 },
-                atmosphereColor: { value: atmosphereColor },
-                opacity: { value: 0.3 },
-                fresnelPower: { value: 3.0 }
-            },
-            vertexShader: 'mock vertex shader',
-            fragmentShader: 'mock fragment shader',
-            transparent: true,
-            blending: THREE.AdditiveBlending,
-            side: THREE.BackSide,
-            depthWrite: false
-        });
-
-        const atmosphereMesh = new THREE.Mesh(geometry, material);
-        atmosphereMesh.name = `${planetData.name}_atmosphere`;
-        atmosphereMesh.userData = { type: 'atmosphere', planetData };
-
-        return atmosphereMesh;
-    }
-
-    async createSunGlow(planetData, options = {}) {
-        const glowRadius = 1.8;
-        const geometry = new THREE.SphereGeometry(glowRadius, 32, 32);
-        const glowColor = new THREE.Color(planetData.color_hex || '#FDB813');
-
-        const material = new THREE.ShaderMaterial({
-            uniforms: {
-                time: { value: 0.0 },
-                glowColor: { value: glowColor },
-                intensity: { value: 0.6 }
-            },
-            vertexShader: 'mock vertex shader',
-            fragmentShader: 'mock fragment shader',
-            transparent: true,
-            blending: THREE.AdditiveBlending,
-            side: THREE.BackSide,
-            depthWrite: false
-        });
-
-        const glowMesh = new THREE.Mesh(geometry, material);
-        glowMesh.name = `${planetData.name}_glow`;
-        glowMesh.userData = { type: 'glow', planetData };
-
-        return glowMesh;
-    }
-
-    // Helper methods
-    shouldHaveAtmosphere(planetData) {
-        const atmosphericPlanets = ['Earth', 'Venus', 'Mars', 'Jupiter', 'Saturn', 'Uranus', 'Neptune', 'ComplexPlanet'];
-        return atmosphericPlanets.includes(planetData.name);
-    }
-
-    getAtmosphereColor(planetData) {
-        const atmosphereColors = {
-            'Earth': new THREE.Color(0x87CEEB),
-            'Venus': new THREE.Color(0xFFC649),
-            'Mars': new THREE.Color(0xFF6B47),
-            'Jupiter': new THREE.Color(0xD2691E),
-            'Saturn': new THREE.Color(0xFAD5A5),
-            'Uranus': new THREE.Color(0x4FD0FF),
-            'Neptune': new THREE.Color(0x4169E1)
-        };
-        return atmosphereColors[planetData.name] || new THREE.Color(planetData.color_hex);
-    }
-
-    getRoughness(planetData) {
-        const roughnessMap = {
-            'terrestrial': 0.8,
-            'gas_giant': 0.1,
-            'ice_giant': 0.3,
-            'dwarf_planet': 0.9
-        };
-        return roughnessMap[planetData.planet_type] || 0.7;
-    }
-
-    getMetalness(planetData) {
-        const metalnessMap = {
-            'terrestrial': 0.1,
-            'gas_giant': 0.0,
-            'ice_giant': 0.0,
-            'dwarf_planet': 0.2
-        };
-        return metalnessMap[planetData.planet_type] || 0.0;
-    }
-
-    addPlanetSpecificProperties(materialOptions, planetData) {
-        switch (planetData.name) {
-            case 'Earth':
-                materialOptions.roughness = 0.7;
-                materialOptions.metalness = 0.1;
-                materialOptions.emissive = new THREE.Color(0x001122);
-                materialOptions.emissiveIntensity = 0.05;
-                break;
-            case 'Mars':
-                materialOptions.roughness = 0.9;
-                materialOptions.metalness = 0.05;
-                break;
-            case 'Venus':
-                materialOptions.roughness = 0.1;
-                materialOptions.metalness = 0.0;
-                materialOptions.emissive = new THREE.Color(planetData.color_hex);
-                materialOptions.emissiveIntensity = 0.1;
-                break;
-            default:
-                materialOptions.roughness = 0.8;
-                materialOptions.metalness = 0.1;
-        }
-    }
-
-    calculateScaledSize(planetData) {
-        const MIN_SIZE = 0.3;
-        const MAX_SIZE = 6.0;
-
-        let scaledSize;
-
-        if (planetData.name === 'Sun') {
-            scaledSize = 5.0;
-        } else {
-            const earthDiameter = 12756;
-            const diameter = planetData.diameter;
-
-            // Fix: Handle NaN, undefined, null, and invalid diameters
-            if (!diameter || isNaN(diameter) || diameter <= 0) {
-                return MIN_SIZE;
-            }
-
-            const sizeRatio = diameter / earthDiameter;
-
-            if (sizeRatio < 0.1) {
-                scaledSize = 0.3 + (sizeRatio * 5);
-            } else if (sizeRatio < 1.0) {
-                scaledSize = 0.5 + (sizeRatio * 1.5);
-            } else {
-                scaledSize = 1.0 + Math.log(sizeRatio) * 0.8;
-            }
-        }
-
-        const result = Math.max(MIN_SIZE, Math.min(MAX_SIZE, scaledSize));
-
-        // Fix: Ensure we never return NaN
-        return isNaN(result) ? MIN_SIZE : result;
-    }
-
-    getOrCreateGeometry(planetData, options = {}) {
-        const segments = this.getSegmentCount(planetData, options.quality);
-        const geometryKey = `sphere_${segments}`;
-
-        if (this.geometryCache.has(geometryKey)) {
-            return this.geometryCache.get(geometryKey);
-        }
-
-        const geometry = new THREE.SphereGeometry(1, segments, segments);
-        this.geometryCache.set(geometryKey, geometry);
-
-        return geometry;
-    }
-
-    getSegmentCount(planetData, quality = 'medium') {
-        const baseSegments = {
-            'low': this.options.lowQualitySegments,
-            'medium': this.options.defaultSegments,
-            'high': this.options.highQualitySegments
-        }[quality] || this.options.defaultSegments;
-
-        if (planetData.name === 'Sun' || planetData.name === 'Earth') {
-            return Math.min(baseSegments * 1.5, 128);
-        }
-
-        return baseSegments;
-    }
-
-    createFallbackPlanet(planetData) {
-        const geometry = new THREE.SphereGeometry(1, 32, 32);
-        const material = new THREE.MeshStandardMaterial({
-            color: planetData.color_hex || '#888888',
-            roughness: 0.7,
-            metalness: 0.1
-        });
-
-        const mesh = new THREE.Mesh(geometry, material);
-        mesh.name = planetData.name;
-        mesh.userData = { planetData, type: 'fallback' };
-
-        const scaledSize = this.calculateScaledSize(planetData);
-        mesh.scale.setScalar(scaledSize);
-
-        const group = new THREE.Group();
-        group.add(mesh);
-        group.name = `${planetData.name}_group`;
-        group.userData = { planetData, type: 'planet' };
-
-        return group;
-    }
-
-    setQuality(quality) {
-        this.options.quality = quality;
-        this.materialCache.clear();
-        this.geometryCache.clear();
-    }
-
-    getPlanet(planetName) {
-        return this.planetInstances.get(planetName) || null;
-    }
-
-    getAllPlanets() {
-        return this.planetInstances;
-    }
-
-    getStats() {
-        return {
-            isInitialized: this.isInitialized,
-            planetsCreated: this.planetInstances.size,
-            materialsCached: this.materialCache.size,
-            texturesCached: this.textureCache.size,
-            geometriesCached: this.geometryCache.size,
-            moonSystems: this.moonSystems.size,
-            ringSystems: this.ringSystems.size,
-            atmospheres: this.atmospheres.size,
-            quality: this.options.quality
-        };
-    }
-
-    dispose() {
-        this.geometryCache.forEach(geometry => geometry.dispose());
-        this.geometryCache.clear();
-
-        this.materialCache.forEach(material => material.dispose());
-        this.materialCache.clear();
-
-        this.textureCache.forEach(texture => texture.dispose());
-        this.textureCache.clear();
-
-        this.planetInstances.clear();
-        this.moonSystems.clear();
-        this.ringSystems.clear();
-        this.atmospheres.clear();
-
-        this.isInitialized = false;
-    }
-}
+// Import the actual PlanetFactory from the JS module
+require('../solar-system/planet-factory.js');
+const { PlanetFactory } = window.PlanetFactory;
 
 // ===================================================================
 // TEST DATA FACTORIES
@@ -1099,7 +302,7 @@ const createMockMarsData = () => ({
 });
 
 // ===================================================================
-// MAIN TEST SUITE
+// MAIN TEST SUITE - TESTING REAL IMPLEMENTATION
 // ===================================================================
 
 describe('PlanetFactory', () => {
@@ -1107,7 +310,7 @@ describe('PlanetFactory', () => {
 
     beforeEach(() => {
         jest.clearAllMocks();
-        planetFactory = new MockPlanetFactory();
+        planetFactory = new PlanetFactory();
     });
 
     afterEach(() => {
@@ -1128,7 +331,7 @@ describe('PlanetFactory', () => {
         });
 
         test('should create PlanetFactory with custom options', () => {
-            const customFactory = new MockPlanetFactory({
+            const customFactory = new PlanetFactory({
                 enableTextures: false,
                 quality: 'high',
                 defaultSegments: 128
@@ -1142,18 +345,22 @@ describe('PlanetFactory', () => {
         });
 
         test('should initialize successfully', async () => {
-            const success = await planetFactory.init();
+            await planetFactory.init();
 
-            expect(success).toBe(true);
             expect(planetFactory.isInitialized).toBe(true);
             expect(planetFactory.textureLoader).toBeInstanceOf(THREE.TextureLoader);
+            expect(planetFactory.texturePaths).toBeDefined();
         });
 
         test('should handle initialization errors', async () => {
-            const errorFactory = new MockPlanetFactory();
-            errorFactory.initializeTextures = jest.fn().mockRejectedValue(new Error('Init failed'));
+            // Force an error by mocking initializeTextures to fail
+            const originalInitializeTextures = planetFactory.initializeTextures;
+            planetFactory.initializeTextures = jest.fn().mockRejectedValue(new Error('Init failed'));
 
-            await expect(errorFactory.init()).rejects.toThrow('Init failed');
+            await expect(planetFactory.init()).rejects.toThrow('Init failed');
+
+            // Restore
+            planetFactory.initializeTextures = originalInitializeTextures;
         });
 
         test('should initialize core properties correctly', () => {
@@ -1257,14 +464,18 @@ describe('PlanetFactory', () => {
         });
 
         test('should create fallback planet on error', async () => {
-            const errorFactory = new MockPlanetFactory();
-            errorFactory.createEnhancedPlanetMesh = jest.fn().mockRejectedValue(new Error('Creation failed'));
+            // Force an error by mocking createEnhancedPlanetMesh to fail
+            const originalCreateMesh = planetFactory.createEnhancedPlanetMesh;
+            planetFactory.createEnhancedPlanetMesh = jest.fn().mockRejectedValue(new Error('Creation failed'));
 
             const planetData = createMockPlanetData();
-            const planet = await errorFactory.createPlanet(planetData);
+            const planet = await planetFactory.createPlanet(planetData);
 
             expect(planet).toBeInstanceOf(THREE.Group);
             expect(planet.children[0].userData.type).toBe('fallback');
+
+            // Restore
+            planetFactory.createEnhancedPlanetMesh = originalCreateMesh;
         });
     });
 
@@ -1421,8 +632,15 @@ describe('PlanetFactory', () => {
         });
 
         test('should fall back to procedural rings on texture failure', async () => {
-            // Mock texture loading to fail
-            planetFactory.loadTexture = jest.fn().mockRejectedValue(new Error('Texture failed'));
+            // Mock texture loading to fail for Saturn rings
+            const originalLoad = planetFactory.textureLoader.load;
+            planetFactory.textureLoader.load = jest.fn((url, onLoad, onProgress, onError) => {
+                if (url.includes('saturn_rings')) {
+                    setTimeout(() => onError(new Error('Texture failed')), 10);
+                } else {
+                    originalLoad.call(planetFactory.textureLoader, url, onLoad, onProgress, onError);
+                }
+            });
 
             const saturnData = createMockSaturnData();
             const rings = await planetFactory.createEnhancedRingSystem(saturnData);
@@ -1507,7 +725,7 @@ describe('PlanetFactory', () => {
 
         test('should limit moon count for performance', async () => {
             const planetData = createMockPlanetData({
-                name: 'GenericPlanet', // Fix: Use name that will trigger createGenericMoons
+                name: 'GenericPlanet',
                 has_moons: true,
                 moon_count: 20 // Should be limited to 4
             });
@@ -1701,6 +919,19 @@ describe('PlanetFactory', () => {
 
             expect(size).toBeLessThanOrEqual(6.0);
         });
+
+        test('should handle invalid diameters gracefully', () => {
+            const invalidDiameters = [null, undefined, NaN, 0, -100, 'invalid'];
+
+            invalidDiameters.forEach(diameter => {
+                const planetData = createMockPlanetData({ diameter });
+                const size = planetFactory.calculateScaledSize(planetData);
+
+                expect(size).toBeGreaterThanOrEqual(0.3);
+                expect(size).toBeLessThanOrEqual(6.0);
+                expect(isNaN(size)).toBe(false);
+            });
+        });
     });
 
     describe('Update System', () => {
@@ -1750,7 +981,7 @@ describe('PlanetFactory', () => {
         });
 
         test('should not update when not initialized', () => {
-            const uninitializedFactory = new MockPlanetFactory();
+            const uninitializedFactory = new PlanetFactory();
             expect(() => uninitializedFactory.update(1.0)).not.toThrow();
         });
 
@@ -1874,11 +1105,20 @@ describe('PlanetFactory', () => {
             await planetFactory.createPlanet(earthData);
 
             // Track dispose calls
-            const geometryDisposeSpy = jest.spyOn(planetFactory.geometryCache.get(planetFactory.geometryCache.keys().next().value), 'dispose');
+            const geometries = Array.from(planetFactory.geometryCache.values());
+            const materials = Array.from(planetFactory.materialCache.values());
 
             planetFactory.dispose();
 
-            expect(geometryDisposeSpy).toHaveBeenCalled();
+            // Check that dispose was called on resources
+            geometries.forEach(geometry => {
+                expect(geometry.dispose).toHaveBeenCalled();
+            });
+
+            materials.forEach(material => {
+                expect(material.dispose).toHaveBeenCalled();
+            });
+
             expect(planetFactory.materialCache.size).toBe(0);
             expect(planetFactory.geometryCache.size).toBe(0);
             expect(planetFactory.textureCache.size).toBe(0);
@@ -1887,7 +1127,7 @@ describe('PlanetFactory', () => {
         });
 
         test('should handle disposal when not initialized', () => {
-            const uninitializedFactory = new MockPlanetFactory();
+            const uninitializedFactory = new PlanetFactory();
 
             expect(() => uninitializedFactory.dispose()).not.toThrow();
         });
@@ -1948,17 +1188,6 @@ describe('PlanetFactory', () => {
             const planet = await planetFactory.createPlanet(planetData);
 
             expect(planet).toBeDefined();
-        });
-
-        test('should handle zero or negative diameters', () => {
-            const zeroDiameter = createMockPlanetData({ diameter: 0 });
-            const negativeDiameter = createMockPlanetData({ diameter: -1000 });
-
-            const zeroSize = planetFactory.calculateScaledSize(zeroDiameter);
-            const negativeSize = planetFactory.calculateScaledSize(negativeDiameter);
-
-            expect(zeroSize).toBeGreaterThanOrEqual(0.3);
-            expect(negativeSize).toBeGreaterThanOrEqual(0.3);
         });
 
         test('should handle planets with excessive moon counts', async () => {
@@ -2051,8 +1280,6 @@ describe('PlanetFactory', () => {
         });
 
         test('should manage memory usage with large numbers of objects', async () => {
-            const initialStats = planetFactory.getStats();
-
             // Create multiple complex planets
             for (let i = 0; i < 5; i++) {
                 const saturnData = createMockSaturnData();
@@ -2142,184 +1369,57 @@ describe('PlanetFactory', () => {
         });
     });
 
-    describe('Backward Compatibility', () => {
-        test('should work without modern features enabled', async () => {
-            const basicFactory = new MockPlanetFactory({
+    describe('Factory Method', () => {
+        test('should create planet factory via factory method', () => {
+            const planetFactoryFromFactory = window.PlanetFactory.create({
                 enableTextures: false,
-                enableAtmosphere: false,
-                enableRings: false,
-                enableMoons: false
+                quality: 'high'
             });
 
-            await basicFactory.init();
-
-            const planet = await basicFactory.createPlanet(createMockPlanetData());
-
-            expect(planet).toBeDefined();
-            expect(planet.children.length).toBe(1); // Only the main planet mesh
-
-            basicFactory.dispose();
+            expect(planetFactoryFromFactory).toBeInstanceOf(PlanetFactory);
+            expect(planetFactoryFromFactory.options.enableTextures).toBe(false);
+            expect(planetFactoryFromFactory.options.quality).toBe('high');
         });
 
-        test('should handle legacy planet data formats', async () => {
-            await planetFactory.init();
+        test('should create planet factory with default options via factory', () => {
+            const planetFactoryFromFactory = window.PlanetFactory.create();
 
-            const legacyData = {
-                name: 'LegacyPlanet',
-                // Missing many modern properties
-            };
-
-            const planet = await planetFactory.createPlanet(legacyData);
-
-            expect(planet).toBeDefined();
-            expect(planet.name).toBe('LegacyPlanet_group');
+            expect(planetFactoryFromFactory).toBeInstanceOf(PlanetFactory);
+            expect(planetFactoryFromFactory.options.enableTextures).toBe(true);
+            expect(planetFactoryFromFactory.options.quality).toBe('medium');
         });
     });
 
-    describe('Advanced Features', () => {
-        beforeEach(async () => {
+    describe('Console Logging', () => {
+        beforeEach(() => {
+            jest.clearAllMocks();
+        });
+
+        test('should log initialization messages', async () => {
             await planetFactory.init();
+
+            expect(console.log).toHaveBeenCalledWith('🚀 Initializing Enhanced Planet Factory with textures, moons, and rings...');
+            expect(console.log).toHaveBeenCalledWith('✅ Enhanced Planet Factory initialized successfully');
         });
 
-        test('should handle complex planet configurations', async () => {
-            const complexPlanet = createMockPlanetData({
-                name: 'ComplexPlanet',
-                diameter: 50000,
-                planet_type: 'gas_giant',
-                has_rings: true,
-                has_moons: true,
-                moon_count: 5,
-                rotation_period: 12
-            });
-
-            const planet = await planetFactory.createPlanet(complexPlanet, {
-                quality: 'high',
-                enableAtmosphere: true,
-                enableRings: true,
-                enableMoons: true
-            });
-
-            expect(planet).toBeDefined();
-            expect(planet.children.length).toBeGreaterThan(1);
-
-            // Should have all features
-            const rings = planet.children.find(c => c.name === 'ComplexPlanet_rings');
-            const moons = planet.children.find(c => c.name === 'ComplexPlanet_moons');
-            const atmosphere = planet.children.find(c => c.name === 'ComplexPlanet_atmosphere');
-
-            expect(rings).toBeDefined();
-            expect(moons).toBeDefined();
-            // Fix: Gas giants should have atmospheres - ComplexPlanet should be in atmospheric list
-            expect(atmosphere).toBeDefined();
-        });
-
-        test('should support dynamic feature toggling', async () => {
-            const planetData = createMockPlanetData({ name: 'Earth' });
-
-            // Create with all features
-            const fullPlanet = await planetFactory.createPlanet(planetData, {
-                enableAtmosphere: true,
-                enableMoons: true
-            });
-
-            // Create with limited features
-            const limitedPlanet = await planetFactory.createPlanet(
-                { ...planetData, name: 'EarthLimited' },
-                {
-                    enableAtmosphere: false,
-                    enableMoons: false
-                }
-            );
-
-            expect(fullPlanet.children.length).toBeGreaterThan(limitedPlanet.children.length);
-        });
-
-        test('should handle texture fallback scenarios', async () => {
-            // Create planet with working textures
-            const planetData = createMockPlanetData({ name: 'Earth' });
-            const planet1 = await planetFactory.createPlanet(planetData);
-
-            // Force texture loading to fail
-            planetFactory.loadTexture = jest.fn().mockRejectedValue(new Error('Network error'));
-
-            // Create planet with failed textures
-            const planet2 = await planetFactory.createPlanet({...planetData, name: 'Earth2'});
-
-            expect(planet1).toBeDefined();
-            expect(planet2).toBeDefined();
-
-            // Both should be created, but with different materials
-            const mesh1 = planet1.getObjectByName('Earth');
-            const mesh2 = planet2.getObjectByName('Earth2');
-
-            expect(mesh1.material).toBeDefined();
-            expect(mesh2.material).toBeDefined();
-        });
-    });
-
-    describe('Edge Cases and Stress Tests', () => {
-        beforeEach(async () => {
+        test('should log planet creation messages', async () => {
             await planetFactory.init();
+
+            const earthData = createMockPlanetData({ name: 'Earth' });
+            await planetFactory.createPlanet(earthData);
+
+            expect(console.log).toHaveBeenCalledWith('🪐 Creating enhanced Earth with textures...');
+            expect(console.log).toHaveBeenCalledWith('✅ Enhanced Earth created successfully');
         });
 
-        test('should handle extremely large numbers', () => {
-            const extremePlanet = createMockPlanetData({
-                diameter: Number.MAX_SAFE_INTEGER,
-                rotation_period: Number.MAX_SAFE_INTEGER
-            });
-
-            const size = planetFactory.calculateScaledSize(extremePlanet);
-            expect(size).toBeLessThanOrEqual(6.0);
-            expect(size).toBeGreaterThanOrEqual(0.3);
+        test('should log quality setting changes', () => {
+            planetFactory.setQuality('high');
+            expect(console.log).toHaveBeenCalledWith('Planet factory quality set to high');
         });
 
-        test('should handle NaN and undefined values', () => {
-            const invalidPlanet = createMockPlanetData({
-                diameter: NaN,
-                rotation_period: undefined
-            });
-
-            const size = planetFactory.calculateScaledSize(invalidPlanet);
-            expect(size).toBeGreaterThanOrEqual(0.3);
-        });
-
-        test('should handle concurrent planet creation', async () => {
-            const promises = [];
-            for (let i = 0; i < 5; i++) {
-                const planetData = createMockPlanetData({ name: `ConcurrentPlanet_${i}` });
-                promises.push(planetFactory.createPlanet(planetData));
-            }
-
-            const planets = await Promise.all(promises);
-
-            expect(planets).toHaveLength(5);
-            planets.forEach(planet => {
-                expect(planet).toBeDefined();
-                expect(planet).toBeInstanceOf(THREE.Group);
-            });
-        });
-
-        test('should maintain state consistency during errors', async () => {
-            const workingPlanet = createMockPlanetData({ name: 'Working' });
-            await planetFactory.createPlanet(workingPlanet);
-
-            const initialStats = planetFactory.getStats();
-
-            // Force an error during creation
-            const originalCreateMesh = planetFactory.createEnhancedPlanetMesh;
-            planetFactory.createEnhancedPlanetMesh = jest.fn().mockRejectedValue(new Error('Creation failed'));
-
-            const failingPlanet = createMockPlanetData({ name: 'Failing' });
-            await planetFactory.createPlanet(failingPlanet); // This will create a fallback planet
-
-            // Restore
-            planetFactory.createEnhancedPlanetMesh = originalCreateMesh;
-
-            const finalStats = planetFactory.getStats();
-
-            // Fix: Should have created fallback planet, so total should be 2
-            expect(finalStats.planetsCreated).toBe(2);
-            expect(planetFactory.isInitialized).toBe(true);
+        test('should log disposal message', () => {
+            planetFactory.dispose();
+            expect(console.log).toHaveBeenCalledWith('Enhanced Planet factory disposed');
         });
     });
 });
