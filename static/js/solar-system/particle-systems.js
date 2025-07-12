@@ -480,185 +480,223 @@ window.ParticleSystems = (function() {
             this.planetPositions = null; // Store planet positions for reference
         }
 
+        /**
+         * Initialize asteroid belt with dynamic positioning
+         * @param {THREE.Scene} scene - Three.js scene
+         * @param {Map} planetInstances - Map of planet instances for position reference
+         */
+        async init(scene, planetInstances = null) {
+            try {
+                this.planetPositions = planetInstances;
 
-    /**
-     * Initialize asteroid belt with dynamic positioning
-     * @param {THREE.Scene} scene - Three.js scene
-     * @param {Map} planetInstances - Map of planet instances for position reference
-     */
-    async init(scene, planetInstances = null) {
-        try {
-            this.planetPositions = planetInstances;
+                // Calculate dynamic positions based on Mars and Jupiter
+                this.calculateBeltPositions();
 
-            // Calculate dynamic positions based on Mars and Jupiter
-            this.calculateBeltPositions();
+                await this.createAsteroidBelt();
+                scene.add(this.asteroids);
 
-            await this.createAsteroidBelt();
-            scene.add(this.asteroids);
+                if (window.Helpers) {
+                    window.Helpers.log(`Asteroid belt created with ${this.options.asteroidCount} asteroids between ${this.innerRadius.toFixed(1)} and ${this.outerRadius.toFixed(1)} units`, 'debug');
+                }
+            } catch (error) {
+                if (window.Helpers) {
+                    window.Helpers.handleError(error, 'AsteroidBeltSystem.init');
+                }
+            }
+        }
+
+        /**
+         * Calculate asteroid belt positions based on Mars and Jupiter orbital distances
+         */
+        calculateBeltPositions() {
+            let marsDistance = 75;   // Default fallback
+            let jupiterDistance = 130; // Default fallback
+
+            // Try to get actual planet positions if available
+            if (this.planetPositions) {
+                const mars = this.planetPositions.get('Mars');
+                const jupiter = this.planetPositions.get('Jupiter');
+
+                if (mars) {
+                    // Check if position is null
+                    if (mars.position === null) {
+                        throw new Error('Mars position contains null values');
+                    }
+
+                    // If position exists and is not null, proceed with calculations
+                    if (mars.position) {
+                        // Validate position properties exist and are not null
+                        if (mars.position.x === null || mars.position.z === null) {
+                            throw new Error('Mars position contains null values');
+                        }
+
+                        // Check for NaN values and use defaults if found
+                        const marsX = isNaN(mars.position.x) ? 75 : mars.position.x;
+                        const marsZ = isNaN(mars.position.z) ? 0 : mars.position.z;
+
+                        // Calculate distance from center
+                        marsDistance = Math.sqrt(marsX * marsX + marsZ * marsZ);
+
+                        // Use default if calculation results in NaN
+                        if (isNaN(marsDistance)) {
+                            marsDistance = 75;
+                        }
+
+                        console.log(`🔴 Mars actual distance: ${marsDistance.toFixed(1)} units`);
+                    }
+                }
+
+                if (jupiter) {
+                    // Check if position is null
+                    if (jupiter.position === null) {
+                        throw new Error('Jupiter position contains null values');
+                    }
+
+                    // If position exists and is not null, proceed with calculations
+                    if (jupiter.position) {
+                        // Validate position properties exist and are not null
+                        if (jupiter.position.x === null || jupiter.position.z === null) {
+                            throw new Error('Jupiter position contains null values');
+                        }
+
+                        // Check for NaN values and use defaults if found
+                        const jupiterX = isNaN(jupiter.position.x) ? 130 : jupiter.position.x;
+                        const jupiterZ = isNaN(jupiter.position.z) ? 0 : jupiter.position.z;
+
+                        // Calculate distance from center
+                        jupiterDistance = Math.sqrt(jupiterX * jupiterX + jupiterZ * jupiterZ);
+
+                        // Use default if calculation results in NaN
+                        if (isNaN(jupiterDistance)) {
+                            jupiterDistance = 130;
+                        }
+
+                        console.log(`🟠 Jupiter actual distance: ${jupiterDistance.toFixed(1)} units`);
+                    }
+                }
+            }
+
+            // Position asteroid belt between Mars and Jupiter with some buffer
+            this.innerRadius = jupiterDistance + 102;   // 102 units beyond Jupiter orbit
+            this.outerRadius = jupiterDistance + 162;   // 162 units beyond Jupiter orbit
+
+            // Ensure minimum belt width and validate results
+            if (isNaN(this.outerRadius) || isNaN(this.innerRadius) || this.outerRadius - this.innerRadius < 15) {
+                // Fallback to safe defaults
+                this.innerRadius = 232;  // 130 + 102
+                this.outerRadius = 292;  // 130 + 162
+            }
 
             if (window.Helpers) {
-                window.Helpers.log(`Asteroid belt created with ${this.options.asteroidCount} asteroids between ${this.innerRadius.toFixed(1)} and ${this.outerRadius.toFixed(1)} units`, 'debug');
-            }
-        } catch (error) {
-            if (window.Helpers) {
-                window.Helpers.handleError(error, 'AsteroidBeltSystem.init');
-            }
-        }
-    }
-
-    /**
-     * Calculate asteroid belt positions based on Mars and Jupiter orbital distances
-     */
-    calculateBeltPositions() {
-        let marsDistance = 75;   // Default fallback
-        let jupiterDistance = 130; // Default fallback
-
-        // Try to get actual planet positions if available
-        if (this.planetPositions) {
-            const mars = this.planetPositions.get('Mars');
-            const jupiter = this.planetPositions.get('Jupiter');
-
-            if (mars && mars.position) {
-                // Calculate distance from center
-                marsDistance = Math.sqrt(
-                    mars.position.x * mars.position.x +
-                    mars.position.z * mars.position.z
-                );
-                console.log(`🔴 Mars actual distance: ${marsDistance.toFixed(1)} units`);
-            }
-
-            if (jupiter && jupiter.position) {
-                // Calculate distance from center
-                jupiterDistance = Math.sqrt(
-                    jupiter.position.x * jupiter.position.x +
-                    jupiter.position.z * jupiter.position.z
-                );
-                console.log(`🟠 Jupiter actual distance: ${jupiterDistance.toFixed(1)} units`);
+                window.Helpers.log(`Asteroid belt positioned: Mars at ${marsDistance.toFixed(1)}, Jupiter at ${jupiterDistance.toFixed(1)}, Belt: ${this.innerRadius.toFixed(1)}-${this.outerRadius.toFixed(1)}`, 'debug');
             }
         }
 
-        // Position asteroid belt between Mars and Jupiter with some buffer
-        // this.innerRadius = marsDistance + 8;      // 8 units beyond Mars orbit
-        this.innerRadius = jupiterDistance + 102;   // 12 units before Jupiter orbit
-        this.outerRadius = jupiterDistance + 162;   // 12 units before Jupiter orbit
+        /**
+         * Create asteroid belt geometry with calculated positions
+         */
+        async createAsteroidBelt() {
+            this.asteroidGeometry = new THREE.BufferGeometry();
 
-        // Ensure minimum belt width
-        if (this.outerRadius - this.innerRadius < 15) {
-            const center = (this.innerRadius + this.outerRadius) / 2;
-            this.innerRadius = center - 10;
-            this.outerRadius = center + 10;
-        }
+            const positions = new Float32Array(this.options.asteroidCount * 3);
+            const colors = new Float32Array(this.options.asteroidCount * 3);
+            const sizes = new Float32Array(this.options.asteroidCount);
+            const orbitalData = new Float32Array(this.options.asteroidCount * 2); // radius, angle
 
-        if (window.Helpers) {
-            window.Helpers.log(`Asteroid belt positioned: Mars at ${marsDistance.toFixed(1)}, Jupiter at ${jupiterDistance.toFixed(1)}, Belt: ${this.innerRadius.toFixed(1)}-${this.outerRadius.toFixed(1)}`, 'debug');
-        }
-    }
-    // Update the createAsteroidBelt method to use calculated positions:
-    /**
-     * Create asteroid belt geometry with calculated positions
-     */
-    async createAsteroidBelt() {
-        this.asteroidGeometry = new THREE.BufferGeometry();
+            for (let i = 0; i < this.options.asteroidCount; i++) {
+                const i3 = i * 3;
+                const i2 = i * 2;
 
-        const positions = new Float32Array(this.options.asteroidCount * 3);
-        const colors = new Float32Array(this.options.asteroidCount * 3);
-        const sizes = new Float32Array(this.options.asteroidCount);
-        const orbitalData = new Float32Array(this.options.asteroidCount * 2); // radius, angle
+                // Use calculated orbital parameters with realistic distribution
+                let radius;
 
-        for (let i = 0; i < this.options.asteroidCount; i++) {
-            const i3 = i * 3;
-            const i2 = i * 2;
+                // Create realistic asteroid distribution (denser in middle, sparser at edges)
+                const rand = Math.random();
+                if (rand < 0.7) {
+                    // 70% in main belt (middle section)
+                    const midPoint = (this.innerRadius + this.outerRadius) / 2;
+                    const halfWidth = (this.outerRadius - this.innerRadius) / 4;
+                    radius = midPoint + (Math.random() - 0.5) * halfWidth;
+                } else {
+                    // 30% scattered throughout belt
+                    radius = this.innerRadius + Math.random() * (this.outerRadius - this.innerRadius);
+                }
 
-            // Use calculated orbital parameters with realistic distribution
-            let radius;
+                // Add some variation to make it look more natural
+                radius += (Math.random() - 0.5) * this.options.densityVariation;
 
-            // Create realistic asteroid distribution (denser in middle, sparser at edges)
-            const rand = Math.random();
-            if (rand < 0.7) {
-                // 70% in main belt (middle section)
-                const midPoint = (this.innerRadius + this.outerRadius) / 2;
-                const halfWidth = (this.outerRadius - this.innerRadius) / 4;
-                radius = midPoint + (Math.random() - 0.5) * halfWidth;
-            } else {
-                // 30% scattered throughout belt
-                radius = this.innerRadius + Math.random() * (this.outerRadius - this.innerRadius);
+                // Ensure radius stays within bounds
+                radius = Math.max(this.innerRadius, Math.min(this.outerRadius, radius));
+
+                const angle = Math.random() * Math.PI * 2;
+                const inclination = (Math.random() - 0.5) * 0.15; // Reduced inclination for more realistic belt
+
+                // Position
+                positions[i3] = radius * Math.cos(angle);
+                positions[i3 + 1] = Math.sin(inclination) * radius * 0.08; // Thinner belt
+                positions[i3 + 2] = radius * Math.sin(angle);
+
+                // Store orbital data for animation
+                orbitalData[i2] = radius;
+                orbitalData[i2 + 1] = angle;
+
+                // Enhanced asteroid colors with more variety
+                const asteroidType = Math.random();
+                let r, g, b;
+
+                if (asteroidType > 0.8) {
+                    // Metallic asteroids (nickel-iron) - 20%
+                    r = 0.7 + Math.random() * 0.2;
+                    g = 0.6 + Math.random() * 0.3;
+                    b = 0.5 + Math.random() * 0.2;
+                } else if (asteroidType > 0.5) {
+                    // Stony asteroids (silicate) - 30%
+                    r = 0.5 + Math.random() * 0.3;
+                    g = 0.4 + Math.random() * 0.2;
+                    b = 0.3 + Math.random() * 0.2;
+                } else if (asteroidType > 0.2) {
+                    // Carbonaceous asteroids - 30%
+                    r = 0.2 + Math.random() * 0.2;
+                    g = 0.2 + Math.random() * 0.2;
+                    b = 0.2 + Math.random() * 0.15;
+                } else {
+                    // Ice-rich asteroids (rare) - 20%
+                    r = 0.4 + Math.random() * 0.2;
+                    g = 0.4 + Math.random() * 0.2;
+                    b = 0.5 + Math.random() * 0.3;
+                }
+
+                colors[i3] = r;
+                colors[i3 + 1] = g;
+                colors[i3 + 2] = b;
+
+                // Size variation - larger asteroids are rarer
+                const sizeRoll = Math.random();
+                let asteroidSize;
+                if (sizeRoll > 0.95) {
+                    // Large asteroids (5%)
+                    asteroidSize = this.options.particleSize * (2.0 + Math.random() * 3.0);
+                } else if (sizeRoll > 0.8) {
+                    // Medium asteroids (15%)
+                    asteroidSize = this.options.particleSize * (1.0 + Math.random() * 2.0);
+                } else {
+                    // Small asteroids (80%)
+                    asteroidSize = this.options.particleSize * (0.3 + Math.random() * 1.0);
+                }
+
+                sizes[i] = asteroidSize;
             }
 
-            // Add some variation to make it look more natural
-            radius += (Math.random() - 0.5) * this.options.densityVariation;
+            this.asteroidGeometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+            this.asteroidGeometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+            this.asteroidGeometry.setAttribute('size', new THREE.BufferAttribute(sizes, 1));
+            this.asteroidGeometry.setAttribute('orbitalData', new THREE.BufferAttribute(orbitalData, 2));
 
-            // Ensure radius stays within bounds
-            radius = Math.max(this.innerRadius, Math.min(this.outerRadius, radius));
+            this.createAsteroidMaterial();
 
-            const angle = Math.random() * Math.PI * 2;
-            const inclination = (Math.random() - 0.5) * 0.15; // Reduced inclination for more realistic belt
-
-            // Position
-            positions[i3] = radius * Math.cos(angle);
-            positions[i3 + 1] = Math.sin(inclination) * radius * 0.08; // Thinner belt
-            positions[i3 + 2] = radius * Math.sin(angle);
-
-            // Store orbital data for animation
-            orbitalData[i2] = radius;
-            orbitalData[i2 + 1] = angle;
-
-            // Enhanced asteroid colors with more variety
-            const asteroidType = Math.random();
-            let r, g, b;
-
-            if (asteroidType > 0.8) {
-                // Metallic asteroids (nickel-iron) - 20%
-                r = 0.7 + Math.random() * 0.2;
-                g = 0.6 + Math.random() * 0.3;
-                b = 0.5 + Math.random() * 0.2;
-            } else if (asteroidType > 0.5) {
-                // Stony asteroids (silicate) - 30%
-                r = 0.5 + Math.random() * 0.3;
-                g = 0.4 + Math.random() * 0.2;
-                b = 0.3 + Math.random() * 0.2;
-            } else if (asteroidType > 0.2) {
-                // Carbonaceous asteroids - 30%
-                r = 0.2 + Math.random() * 0.2;
-                g = 0.2 + Math.random() * 0.2;
-                b = 0.2 + Math.random() * 0.15;
-            } else {
-                // Ice-rich asteroids (rare) - 20%
-                r = 0.4 + Math.random() * 0.2;
-                g = 0.4 + Math.random() * 0.2;
-                b = 0.5 + Math.random() * 0.3;
-            }
-
-            colors[i3] = r;
-            colors[i3 + 1] = g;
-            colors[i3 + 2] = b;
-
-            // Size variation - larger asteroids are rarer
-            const sizeRoll = Math.random();
-            let asteroidSize;
-            if (sizeRoll > 0.95) {
-                // Large asteroids (5%)
-                asteroidSize = this.options.particleSize * (2.0 + Math.random() * 3.0);
-            } else if (sizeRoll > 0.8) {
-                // Medium asteroids (15%)
-                asteroidSize = this.options.particleSize * (1.0 + Math.random() * 2.0);
-            } else {
-                // Small asteroids (80%)
-                asteroidSize = this.options.particleSize * (0.3 + Math.random() * 1.0);
-            }
-
-            sizes[i] = asteroidSize;
+            this.asteroids = new THREE.Points(this.asteroidGeometry, this.asteroidMaterial);
+            this.asteroids.name = 'asteroidBelt';
         }
-
-        this.asteroidGeometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
-        this.asteroidGeometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
-        this.asteroidGeometry.setAttribute('size', new THREE.BufferAttribute(sizes, 1));
-        this.asteroidGeometry.setAttribute('orbitalData', new THREE.BufferAttribute(orbitalData, 2));
-
-        this.createAsteroidMaterial();
-
-        this.asteroids = new THREE.Points(this.asteroidGeometry, this.asteroidMaterial);
-        this.asteroids.name = 'asteroidBelt';
-    }
 
         /**
          * Create asteroid material
@@ -673,35 +711,37 @@ window.ParticleSystems = (function() {
                 blending: THREE.NormalBlending
             });
         }
-    /**
-     * Update asteroid belt position if planet positions change
-     * @param {Map} planetInstances - Updated planet instances
-     */
-    updateBeltPosition(planetInstances) {
-        if (!planetInstances) return;
 
-        this.planetPositions = planetInstances;
-        const oldInner = this.innerRadius;
-        const oldOuter = this.outerRadius;
+        /**
+         * Update asteroid belt position if planet positions change
+         * @param {Map} planetInstances - Updated planet instances
+         */
+        updateBeltPosition(planetInstances) {
+            if (!planetInstances) return;
 
-        // Recalculate positions
-        this.calculateBeltPositions();
+            this.planetPositions = planetInstances;
+            const oldInner = this.innerRadius;
+            const oldOuter = this.outerRadius;
 
-        // Only recreate if positions changed significantly
-        if (Math.abs(oldInner - this.innerRadius) > 5 || Math.abs(oldOuter - this.outerRadius) > 5) {
-            if (window.Helpers) {
-                window.Helpers.log('Asteroid belt position updated due to planet position changes', 'debug');
+            // Recalculate positions
+            this.calculateBeltPositions();
+
+            // Only recreate if positions changed significantly
+            if (Math.abs(oldInner - this.innerRadius) > 5 || Math.abs(oldOuter - this.outerRadius) > 5) {
+                if (window.Helpers) {
+                    window.Helpers.log('Asteroid belt position updated due to planet position changes', 'debug');
+                }
+
+                // Dispose old geometry
+                if (this.asteroidGeometry) {
+                    this.asteroidGeometry.dispose();
+                }
+
+                // Recreate with new positions
+                this.createAsteroidBelt();
             }
-
-            // Dispose old geometry
-            if (this.asteroidGeometry) {
-                this.asteroidGeometry.dispose();
-            }
-
-            // Recreate with new positions
-            this.createAsteroidBelt();
         }
-    }
+
         /**
          * Update asteroid belt (orbital motion)
          * @param {number} deltaTime - Time since last frame
@@ -958,7 +998,11 @@ window.ParticleSystems = (function() {
         // Individual system creators
         createStarfield: (options = {}) => new StarfieldSystem(options),
         createNebula: (options = {}) => new NebulaSystem(options),
-        createAsteroidBelt: (options = {}) => new AsteroidBeltSystem(options)
+        createAsteroidBelt: (options = {}) => new AsteroidBeltSystem(options),
+
+        // Version info for testing
+        version: '1.0.0',
+        loaded: true
     };
 })();
 
@@ -966,5 +1010,3 @@ window.ParticleSystems = (function() {
 if (typeof module !== 'undefined' && module.exports) {
     module.exports = window.ParticleSystems;
 }
-
-console.log('ParticleSystems module loaded successfully');
