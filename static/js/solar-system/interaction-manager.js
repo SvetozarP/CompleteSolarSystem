@@ -314,7 +314,16 @@ window.InteractionManager = (function() {
 
             if (intersects.length > 0) {
                 const intersectedObject = intersects[0].object;
-                return intersectedObject.userData.planetData;
+
+                if (
+                    intersectedObject &&
+                    intersectedObject.userData &&
+                    intersectedObject.userData.planetData != null
+                ) {
+                    return intersectedObject.userData.planetData;
+                }
+
+                return null;
             }
 
             return null;
