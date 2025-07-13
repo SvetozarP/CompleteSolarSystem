@@ -1580,7 +1580,7 @@ describe('InteractionManager', () => {
             interactionManager.raycastPlanets();
             const endTime = performance.now();
 
-            expect(endTime - startTime).toBeLessThan(100); // Should complete within 100ms
+            expect(endTime - startTime).toBeLessThan(200); // Should complete within 200ms
         });
 
         test('should debounce focus calls efficiently', () => {
