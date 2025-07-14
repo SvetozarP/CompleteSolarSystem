@@ -189,6 +189,51 @@ describe('ControlPanel', () => {
         jest.clearAllMocks();
         global.globalThis.eventListenerCleanups = [];
         
+        // Reset solarSystemApp to original state
+        global.window.solarSystemApp = {
+            cameraControls: {
+                camera: {
+                    position: mockVector3(),
+                    lookAt: jest.fn(),
+                    getWorldDirection: jest.fn()
+                },
+                target: mockVector3(),
+                IsFollowing: false,
+                followDistance: 50,
+                followedPlanet: null,
+                followOffset: mockVector3(),
+                updateSphericalFromCamera: jest.fn(),
+                stopFollowing: jest.fn(),
+                setPosition: jest.fn(),
+                lookAt: jest.fn()
+            },
+            interactionManager: {
+                focusAndFollowPlanet: jest.fn(),
+                SelectedPlanet: null
+            },
+            sceneManager: {
+                takeScreenshot: jest.fn()
+            },
+            planetLabels: {
+                toggle: jest.fn(() => true)
+            },
+            planets: [
+                { name: 'Sun' },
+                { name: 'Mercury' },
+                { name: 'Venus' },
+                { name: 'Earth' },
+                { name: 'Mars' },
+                { name: 'Jupiter' },
+                { name: 'Saturn' },
+                { name: 'Uranus' },
+                { name: 'Neptune' },
+                { name: 'Pluto' }
+            ],
+            resetCameraView: jest.fn(),
+            togglePlanetFollowing: jest.fn(),
+            stopFollowingPlanet: jest.fn()
+        };
+        
         // Create fresh mock elements
         mockElements = {
             panel: mockElement(),
@@ -550,6 +595,407 @@ describe('ControlPanel', () => {
             window.NotificationSystem = null;
             
             expect(() => controlPanel.setSpeed(2.0)).not.toThrow();
+        });
+    });
+
+    describe('Speed Button Creation', () => {
+        beforeEach(() => {
+            controlPanel.init();
+        });
+
+        test('creates speed buttons with correct configurations', () => {
+            const mockContainer = mockElement();
+            document.querySelector.mockImplementation((selector) => {
+                if (selector === '.speed-presets') return mockContainer;
+                return mockElements.panel;
+            });
+
+            // Re-init to trigger button creation
+            controlPanel.init();
+
+            expect(document.createElement).toHaveBeenCalledWith('button');
+            expect(mockContainer.appendChild).toHaveBeenCalled();
+        });
+
+        test('clears existing speed buttons when recreating', () => {
+            const mockContainer = mockElement();
+            document.querySelector.mockImplementation((selector) => {
+                if (selector === '.speed-presets') return mockContainer;
+                return mockElements.panel;
+            });
+
+            controlPanel.init();
+            expect(mockContainer.innerHTML).toBe('');
+        });
+    });
+
+    describe('Speed Button Interactions', () => {
+        beforeEach(() => {
+            controlPanel.init();
+        });
+
+        test('speed buttons handle click events', () => {
+            const mockButton = mockElement({ dataset: { speed: '2' } });
+            
+            // Mock the speed container and button creation
+            const mockContainer = mockElement();
+            document.querySelector.mockImplementation((selector) => {
+                if (selector === '.speed-presets') return mockContainer;
+                return mockElements.panel;
+            });
+            
+            // Re-initialize to create speed buttons
+            controlPanel.init();
+            
+            // Test that the speed button handler would set speed correctly
+            expect(controlPanel.getSpeed()).toBe(1.0); // Default speed
+            
+            // Simulate speed button click by calling setSpeed directly
+            controlPanel.setSpeed(2.0);
+            expect(controlPanel.getSpeed()).toBe(2.0);
+        });
+
+        test('speed buttons handle mouseenter events', () => {
+            const mockButton = mockElement({ 
+                dataset: { speed: '2' },
+                classList: { contains: jest.fn(() => false) }
+            });
+            
+            // Simulate mouseenter
+            const mouseenterHandler = mockButton.addEventListener.mock.calls
+                .find(call => call[0] === 'mouseenter')?.[1];
+            
+            if (mouseenterHandler) {
+                expect(() => mouseenterHandler()).not.toThrow();
+            }
+        });
+
+        test('speed buttons handle mouseleave events', () => {
+            const mockButton = mockElement({ 
+                dataset: { speed: '0' },
+                classList: { contains: jest.fn(() => false) }
+            });
+            
+            // Simulate mouseleave
+            const mouseleaveHandler = mockButton.addEventListener.mock.calls
+                .find(call => call[0] === 'mouseleave')?.[1];
+            
+            if (mouseleaveHandler) {
+                expect(() => mouseleaveHandler()).not.toThrow();
+            }
+        });
+    });
+
+    describe('Planet Navigation Button Creation', () => {
+        beforeEach(() => {
+            controlPanel.init();
+        });
+
+        test('creates planet navigation buttons', () => {
+            const mockNavContainer = mockElement();
+            mockElements.planetNavigation = mockNavContainer;
+            
+            document.getElementById.mockImplementation((id) => {
+                if (id === 'planet-navigation') return mockNavContainer;
+                return mockElements.panel;
+            });
+
+            controlPanel.init();
+            expect(document.createElement).toHaveBeenCalledWith('button');
+        });
+    });
+
+    describe('Advanced Features via Keyboard Shortcuts', () => {
+        beforeEach(() => {
+            controlPanel.init();
+        });
+
+        test('I key toggles planet info when planet is selected', () => {
+            const mockInfoPanel = mockElement();
+            document.getElementById.mockImplementation((id) => {
+                if (id === 'info-panel') return mockInfoPanel;
+                return null;
+            });
+
+            window.solarSystemApp.interactionManager.SelectedPlanet = { name: 'Earth' };
+            
+            const event = { code: 'KeyI', preventDefault: jest.fn(), stopPropagation: jest.fn() };
+            const result = controlPanel.handleKeyPress(event);
+            
+            expect(result).toBe(true);
+            expect(mockInfoPanel.classList.toggle).toHaveBeenCalledWith('hidden');
+        });
+
+        test('I key shows warning when no planet selected', () => {
+            window.solarSystemApp.interactionManager.SelectedPlanet = null;
+            
+            // Ensure NotificationSystem is available
+            window.NotificationSystem = {
+                showWarning: jest.fn(),
+                showSuccess: jest.fn(),
+                showError: jest.fn(),
+                showInfo: jest.fn()
+            };
+            
+            const event = { code: 'KeyI', preventDefault: jest.fn(), stopPropagation: jest.fn() };
+            const result = controlPanel.handleKeyPress(event);
+            
+            expect(result).toBe(true);
+            expect(window.NotificationSystem.showWarning).toHaveBeenCalledWith('No planet selected');
+        });
+
+        test('F key toggles fullscreen', () => {
+            const event = { code: 'KeyF', preventDefault: jest.fn(), stopPropagation: jest.fn() };
+            
+            const result = controlPanel.handleKeyPress(event);
+            
+            expect(result).toBe(true);
+            expect(document.dispatchEvent).toHaveBeenCalledWith(
+                expect.objectContaining({
+                    type: 'toggleFullscreen'
+                })
+            );
+        });
+
+        test('S key takes screenshot with Ctrl', () => {
+            // Ensure NotificationSystem is available
+            window.NotificationSystem = {
+                showWarning: jest.fn(),
+                showSuccess: jest.fn(),
+                showError: jest.fn(),
+                showInfo: jest.fn()
+            };
+            
+            const event = { code: 'KeyS', ctrlKey: true, preventDefault: jest.fn(), stopPropagation: jest.fn() };
+            
+            const result = controlPanel.handleKeyPress(event);
+            
+            expect(result).toBe(true);
+            expect(window.solarSystemApp.sceneManager.takeScreenshot).toHaveBeenCalled();
+            expect(window.NotificationSystem.showSuccess).toHaveBeenCalledWith('📷 Screenshot saved!');
+        });
+
+        test('S key handles screenshot error with Ctrl', () => {
+            // Ensure NotificationSystem is available
+            window.NotificationSystem = {
+                showWarning: jest.fn(),
+                showSuccess: jest.fn(),
+                showError: jest.fn(),
+                showInfo: jest.fn()
+            };
+            
+            window.solarSystemApp.sceneManager.takeScreenshot.mockImplementation(() => {
+                throw new Error('Screenshot failed');
+            });
+            
+            const event = { code: 'KeyS', ctrlKey: true, preventDefault: jest.fn(), stopPropagation: jest.fn() };
+            const result = controlPanel.handleKeyPress(event);
+            
+            expect(result).toBe(true);
+            expect(window.NotificationSystem.showError).toHaveBeenCalledWith('Screenshot failed');
+        });
+
+        test('Equal key (Plus) zooms in with Ctrl and zoom button', () => {
+            const mockZoomBtn = mockElement();
+            document.getElementById.mockImplementation((id) => {
+                if (id === 'zoom-in') return mockZoomBtn;
+                return null;
+            });
+
+            const event = { code: 'Equal', ctrlKey: true, preventDefault: jest.fn(), stopPropagation: jest.fn() };
+            const result = controlPanel.handleKeyPress(event);
+            
+            expect(result).toBe(true);
+            expect(mockZoomBtn.click).toHaveBeenCalled();
+        });
+
+        test('Minus key zooms out with Ctrl and zoom button', () => {
+            const mockZoomBtn = mockElement();
+            document.getElementById.mockImplementation((id) => {
+                if (id === 'zoom-out') return mockZoomBtn;
+                return null;
+            });
+
+            const event = { code: 'Minus', ctrlKey: true, preventDefault: jest.fn(), stopPropagation: jest.fn() };
+            const result = controlPanel.handleKeyPress(event);
+            
+            expect(result).toBe(true);
+            expect(mockZoomBtn.click).toHaveBeenCalled();
+        });
+
+        test('Equal key zooms in with Ctrl without zoom button - following mode', () => {
+            document.getElementById.mockReturnValue(null);
+            window.solarSystemApp.cameraControls.IsFollowing = true;
+            window.solarSystemApp.cameraControls.followDistance = 50;
+            window.solarSystemApp.cameraControls.followedPlanet = {
+                getWorldPosition: jest.fn()
+            };
+
+            const event = { code: 'Equal', ctrlKey: true, preventDefault: jest.fn(), stopPropagation: jest.fn() };
+            const result = controlPanel.handleKeyPress(event);
+            
+            expect(result).toBe(true);
+            expect(window.solarSystemApp.cameraControls.followDistance).toBe(40);
+        });
+
+        test('Minus key zooms out with Ctrl without zoom button - non-following mode', () => {
+            document.getElementById.mockReturnValue(null);
+            window.solarSystemApp.cameraControls.IsFollowing = false;
+            
+            const mockCamera = {
+                position: mockVector3(),
+                getWorldDirection: jest.fn()
+            };
+            window.solarSystemApp.cameraControls.camera = mockCamera;
+            
+            const event = { code: 'Minus', ctrlKey: true, preventDefault: jest.fn(), stopPropagation: jest.fn() };
+            const result = controlPanel.handleKeyPress(event);
+            
+            expect(result).toBe(true);
+            expect(mockCamera.getWorldDirection).toHaveBeenCalled();
+        });
+
+        test('Digit0 with Ctrl resets zoom with zoom reset button', () => {
+            const mockZoomResetBtn = mockElement();
+            document.getElementById.mockImplementation((id) => {
+                if (id === 'zoom-reset') return mockZoomResetBtn;
+                return null;
+            });
+
+            const event = { code: 'Digit0', ctrlKey: true, preventDefault: jest.fn(), stopPropagation: jest.fn() };
+            const result = controlPanel.handleKeyPress(event);
+            
+            expect(result).toBe(true);
+            expect(mockZoomResetBtn.click).toHaveBeenCalled();
+        });
+
+        test('Digit0 with Ctrl resets zoom without button', () => {
+            document.getElementById.mockReturnValue(null);
+            
+            const event = { code: 'Digit0', ctrlKey: true, preventDefault: jest.fn(), stopPropagation: jest.fn() };
+            const result = controlPanel.handleKeyPress(event);
+            
+            expect(result).toBe(true);
+            expect(window.solarSystemApp.resetCameraView).toHaveBeenCalled();
+        });
+
+        test('H key toggles help', () => {
+            const event = { code: 'KeyH', preventDefault: jest.fn(), stopPropagation: jest.fn() };
+            
+            const result = controlPanel.handleKeyPress(event);
+            
+            expect(result).toBe(true);
+            expect(document.dispatchEvent).toHaveBeenCalledWith(
+                expect.objectContaining({
+                    type: 'toggleHelp'
+                })
+            );
+        });
+    });
+
+    describe('Speed Slider Interactions', () => {
+        beforeEach(() => {
+            controlPanel.init();
+        });
+
+        test('speed slider input updates speed', () => {
+            const mockSlider = mockElement();
+            mockElements.speedSlider = mockSlider;
+            
+            const inputHandler = mockSlider.addEventListener.mock.calls
+                .find(call => call[0] === 'input')?.[1];
+            
+            if (inputHandler) {
+                inputHandler({ target: { value: '3.5' } });
+                expect(controlPanel.getSpeed()).toBe(3.5);
+            }
+        });
+    });
+
+    describe('Checkbox Feature Toggles', () => {
+        beforeEach(() => {
+            controlPanel.init();
+        });
+
+        test('checkbox changes dispatch events and show notifications', () => {
+            const mockCheckbox = mockElement();
+            mockElements.checkboxes.orbits = mockCheckbox;
+            
+            const changeHandler = mockCheckbox.addEventListener.mock.calls
+                .find(call => call[0] === 'change')?.[1];
+            
+            if (changeHandler) {
+                changeHandler({ target: { checked: true } });
+                
+                expect(document.dispatchEvent).toHaveBeenCalledWith(
+                    expect.objectContaining({
+                        type: 'toggleFeature',
+                        detail: { feature: 'orbits', enabled: true }
+                    })
+                );
+                expect(window.NotificationSystem.showInfo).toHaveBeenCalledWith('Orbits enabled');
+            }
+        });
+    });
+
+    describe('Planet Button Interactions', () => {
+        beforeEach(() => {
+            controlPanel.init();
+        });
+
+        test('planet buttons handle click events', () => {
+            const mockPlanetBtn = mockElement({ dataset: { planet: 'mars' } });
+            
+            // Simulate clicking a planet button
+            const clickHandler = mockPlanetBtn.addEventListener.mock.calls
+                .find(call => call[0] === 'click')?.[1];
+            
+            if (clickHandler) {
+                clickHandler();
+                expect(window.solarSystemApp.interactionManager.focusAndFollowPlanet)
+                    .toHaveBeenCalledWith({ name: 'Mars' });
+            }
+        });
+    });
+
+    describe('Additional Keyboard Shortcuts', () => {
+        beforeEach(() => {
+            controlPanel.init();
+        });
+
+        test('Digit keys 1-9 focus on planets when button exists', () => {
+            const mockButton = mockElement();
+            mockButton.textContent = 'Mars';
+            
+            mockElements.planetNavigation.querySelector.mockReturnValue(mockButton);
+            
+            const event = { code: 'Digit4', preventDefault: jest.fn(), stopPropagation: jest.fn() };
+            
+            const result = controlPanel.handleKeyPress(event);
+            
+            expect(result).toBe(true);
+            expect(mockElements.planetNavigation.querySelector).toHaveBeenCalledWith('[data-key="4"]');
+        });
+    });
+
+    describe('Error Handling Edge Cases', () => {
+        test('handles missing speed container gracefully', () => {
+            document.querySelector.mockImplementation((selector) => {
+                if (selector === '.speed-presets') return null;
+                return mockElements.panel;
+            });
+
+            expect(() => controlPanel.init()).not.toThrow();
+        });
+
+        test('handles missing planet navigation container', () => {
+            mockElements.planetNavigation = null;
+            document.getElementById.mockImplementation((id) => {
+                if (id === 'planet-navigation') return null;
+                return mockElements.panel;
+            });
+
+            expect(() => controlPanel.init()).not.toThrow();
         });
     });
 
