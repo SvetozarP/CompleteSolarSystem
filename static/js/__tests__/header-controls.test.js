@@ -259,6 +259,16 @@ describe('HeaderControls', () => {
             global.document.getElementById = jest.fn().mockReturnValue(null);
             expect(() => headerControls.init()).not.toThrow();
         });
+
+        test('init method handles existing modals', () => {
+            const existingModal = mockElement();
+            global.document.getElementById = jest.fn().mockImplementation((id) => {
+                if (id === 'help-modal' || id === 'system-info-modal') return existingModal;
+                return mockElements[id] || null;
+            });
+            headerControls.init();
+            expect(existingModal.remove).toHaveBeenCalled();
+        });
     });
 
     describe('Public API Methods', () => {
@@ -295,6 +305,67 @@ describe('HeaderControls', () => {
             headerControls.dispose();
             expect(headerControls.isFullscreen()).toBe(false);
         });
+    });
+
+    describe('Modal Functionality', () => {
+        test('toggleHelpModal calls appropriate methods', () => {
+            expect(() => headerControls.toggleHelpModal()).not.toThrow();
+        });
+
+        test('toggleSystemInfoModal calls appropriate methods', () => {
+            expect(() => headerControls.toggleSystemInfoModal()).not.toThrow();
+        });
+
+        test('showHelpModal handles missing NotificationSystem', () => {
+            window.NotificationSystem = null;
+            expect(() => headerControls.showHelpModal()).not.toThrow();
+        });
+
+        test('showSystemInfoModal handles missing NotificationSystem', () => {
+            window.NotificationSystem = null;
+            expect(() => headerControls.showSystemInfoModal()).not.toThrow();
+        });
+
+        test('showSystemInfoModal handles missing solarSystemApp', () => {
+            window.solarSystemApp = null;
+            expect(() => headerControls.showSystemInfoModal()).not.toThrow();
+        });
+
+        test('showSystemInfoModal handles solarSystemApp error', () => {
+            window.solarSystemApp = {
+                getPerformanceStats: () => {
+                    throw new Error('Test error');
+                }
+            };
+            expect(() => headerControls.showSystemInfoModal()).not.toThrow();
+        });
+
+        test('showSystemInfoModal handles partial solarSystemApp data', () => {
+            window.solarSystemApp = {
+                getPerformanceStats: () => ({
+                    fps: 30,
+                    qualityLevel: 'Medium'
+                }),
+                Planets: [
+                    { name: 'Earth', moon_count: 1 },
+                    { name: 'Mars' }
+                ]
+            };
+            expect(() => headerControls.showSystemInfoModal()).not.toThrow();
+        });
+
+        test('showSystemInfoModal handles missing content element', () => {
+            const modalElement = mockElement();
+            modalElement.querySelector = jest.fn().mockReturnValue(null);
+            
+            global.document.getElementById = jest.fn().mockImplementation((id) => {
+                if (id === 'system-info-modal') return modalElement;
+                return mockElements[id] || null;
+            });
+            
+            expect(() => headerControls.showSystemInfoModal()).not.toThrow();
+        });
+
     });
 
     describe('Fullscreen Functionality', () => {
@@ -340,6 +411,18 @@ describe('HeaderControls', () => {
             expect(global.document.documentElement.mozRequestFullScreen).toHaveBeenCalled();
         });
 
+        test('toggleFullscreen handles ms fullscreen', () => {
+            global.document.fullscreenElement = null;
+            global.document.msFullscreenElement = null;
+            global.document.documentElement.requestFullscreen = null;
+            global.document.documentElement.mozRequestFullScreen = null;
+            global.document.documentElement.webkitRequestFullscreen = null;
+            global.document.documentElement.msRequestFullscreen = jest.fn();
+            
+            headerControls.toggleFullscreen();
+            
+            expect(global.document.documentElement.msRequestFullscreen).toHaveBeenCalled();
+        });
 
         test('toggleFullscreen handles webkit exit fullscreen', () => {
             global.document.webkitFullscreenElement = mockElement();
@@ -361,6 +444,17 @@ describe('HeaderControls', () => {
             expect(global.document.mozCancelFullScreen).toHaveBeenCalled();
         });
 
+        test('toggleFullscreen handles ms exit fullscreen', () => {
+            global.document.msFullscreenElement = mockElement();
+            global.document.exitFullscreen = null;
+            global.document.mozCancelFullScreen = null;
+            global.document.webkitExitFullscreen = null;
+            global.document.msExitFullscreen = jest.fn();
+            
+            headerControls.toggleFullscreen();
+            
+            expect(global.document.msExitFullscreen).toHaveBeenCalled();
+        });
 
         test('toggleFullscreen handles missing notification system', () => {
             window.NotificationSystem = null;
@@ -370,14 +464,44 @@ describe('HeaderControls', () => {
             expect(() => headerControls.toggleFullscreen()).not.toThrow();
         });
 
+        test('updateFullscreenButton handles missing button', () => {
+            global.document.getElementById = jest.fn().mockReturnValue(null);
+            expect(() => headerControls.toggleFullscreen()).not.toThrow();
+        });
+
+        test('updateFullscreenButton handles missing icon', () => {
+            mockElements.fullscreenBtn.querySelector = jest.fn().mockReturnValue(null);
+            expect(() => headerControls.toggleFullscreen()).not.toThrow();
+        });
+
     });
 
+    describe('WebGL Detection', () => {
+        test('getWebGLVersion handles no WebGL support', () => {
+            const mockCanvas = mockElement({
+                getContext: jest.fn().mockReturnValue(null)
+            });
+            global.document.createElement = jest.fn().mockReturnValue(mockCanvas);
+            
+            expect(() => headerControls.showSystemInfoModal()).not.toThrow();
+        });
+
+    });
 
     describe('Module Auto-initialization', () => {
         test('module sets up auto-initialization', () => {
-            // The module should have loaded successfully
             expect(window.HeaderControls).toBeDefined();
             expect(typeof window.HeaderControls.init).toBe('function');
+        });
+
+        test('DOMContentLoaded handles missing HeaderControls gracefully', () => {
+            const originalHeaderControls = window.HeaderControls;
+            window.HeaderControls = null;
+            
+            const event = new Event('DOMContentLoaded');
+            expect(() => document.dispatchEvent(event)).not.toThrow();
+            
+            window.HeaderControls = originalHeaderControls;
         });
     });
 });
