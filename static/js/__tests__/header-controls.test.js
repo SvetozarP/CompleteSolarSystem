@@ -488,6 +488,49 @@ describe('HeaderControls', () => {
 
     });
 
+    describe('Edge Cases and Error Handling', () => {
+        
+        test('modal functions exist and callable', () => {
+            // Test that modal functions exist and are callable
+            expect(typeof headerControls.showHelpModal).toBe('function');
+            expect(typeof headerControls.hideHelpModal).toBe('function');
+            expect(typeof headerControls.showSystemInfoModal).toBe('function');
+            expect(typeof headerControls.hideSystemInfoModal).toBe('function');
+        });
+
+        test('dispose function coverage', () => {
+            // Test dispose function
+            headerControls.dispose();
+            
+            // Verify dispose logging
+            expect(console.log).toHaveBeenCalledWith('🧹 Disposing HeaderControls and cleaning up event listeners...');
+            expect(console.log).toHaveBeenCalledWith('✅ HeaderControls disposed successfully');
+        });
+        
+        test('isFullscreen function coverage', () => {
+            // Test isFullscreen function
+            expect(typeof headerControls.isFullscreen).toBe('function');
+            const result = headerControls.isFullscreen();
+            expect(typeof result).toBe('boolean');
+        });
+    });
+
+    describe('Additional Coverage Tests', () => {
+        
+        test('modal visibility and toggle states', () => {
+            // Test that modals can be toggled
+            expect(() => headerControls.toggleHelpModal()).not.toThrow();
+            expect(() => headerControls.toggleSystemInfoModal()).not.toThrow();
+            
+            // Test show/hide methods work
+            expect(() => headerControls.showHelpModal()).not.toThrow();
+            expect(() => headerControls.hideHelpModal()).not.toThrow();
+            expect(() => headerControls.showSystemInfoModal()).not.toThrow();
+            expect(() => headerControls.hideSystemInfoModal()).not.toThrow();
+        });
+
+    });
+
     describe('Module Auto-initialization', () => {
         test('module sets up auto-initialization', () => {
             expect(window.HeaderControls).toBeDefined();
